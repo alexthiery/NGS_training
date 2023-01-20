@@ -19,8 +19,9 @@ nextflow pull nf-core/rnaseq
 
 ## RUN alignment
 nextflow run nf-core/rnaseq \
+    -r 3.8 \
     -profile test_full \
-    -c ./conf/crick.config \
+    -c ./conf/test_full.config \
     --outdir ./output/NF-RNAseq_alignment \
     --email alex.thiery@crick.ac.uk \
     -resume
