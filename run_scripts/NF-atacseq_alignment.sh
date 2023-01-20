@@ -15,7 +15,7 @@ export NXF_VER=21.10.6
 export NXF_SINGULARITY_CACHEDIR=/camp/home/thierya/working/NF_singularity
 
 ## UPDATE PIPLINE
-nextflow pull nf-core/rnaseq
+nextflow pull nf-core/atacseq
 
 ## RUN alignment
 nextflow run nf-core/atacseq \
