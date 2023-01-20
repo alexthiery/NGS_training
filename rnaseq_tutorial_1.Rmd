@@ -1,0 +1,39 @@
+---
+title: "Bulk RNAseq analysis tutorial"
+output: html_document
+date: "2023-01-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+You can download this repository and run these sessions on your local machine by clicking on the "clone or download" button above.
+
+With each session outlined below, you will also find an homework task and corresponding answers. This is a great way to test that you have understood the basic concepts highlighted in the sessions, and that will start to show you how to apply these to RNAseq analysis.
+
+We will conduct bulk RNAseq analysis in R using [DEseq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential expression testing
+
+This tutorial is focussed on the data objects used in 
+
+First we need to install the required packages
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+BiocManager::install("apeglm")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
