@@ -18,9 +18,9 @@ export NXF_SINGULARITY_CACHEDIR=/camp/home/thierya/working/NF_singularity
 nextflow pull nf-core/rnaseq
 
 ## RUN alignment
-nextflow run nf-core/rnaseq \
-    -r 3.8 \
-    -c ./conf/test_full_RNA.config \
-    --outdir ./output/NF-RNAseq_alignment \
+nextflow run nf-core/atacseq \
+    -r 2.0 \
+    -c ./conf/test_full_ATAC.config \
+    --outdir ./output/NF-ATACseq_alignment \
     --email alex.thiery@crick.ac.uk \
     -resume
