@@ -1,0 +1,12 @@
+output
+.cache
+.rstudio
+.config
+.local
+.Rhistory
+.nextflow*
+work
+.DS_Store
+null
+results
+temp
