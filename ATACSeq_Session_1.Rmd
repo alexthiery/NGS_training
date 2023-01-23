@@ -13,7 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 H. sapiens paired-end ATAC-seq dataset was obtained from:
 M Ryan Corces et al. An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. Nat Methods. 2017 Oct;14(10):959-962. doi: 10.1038/nmeth.4396.
 
-In this paper, XXXXX they present this new improved ATAC-seq protocol which reduces background. what is the vitro culture system they are using? Collected data using 3 different protocols: Standard, Omni and Fast. Two replicates per protocol. 
+In this paper Corces et al present a new ATAC-seq protocol which reduces background and enables interrogation of frozen tissues. The human cell line GM12878 was cultured and ATACseq data was collected using 3 different protocols: Standard, Omni and Fast. For each protocol two replicates were collected. 
+
+Data was aligned and annotated for the hg19 reference genome using the NF-core ATACseq pipeline - https://nf-co.re/atacseq. 
 
 Sample information:
 SRA ID	    SAMPLE NAME
@@ -61,12 +63,12 @@ First we need to read in this data, to do this we need to set the paths, these a
 ```{r set_paths}
 
 # setting the paths for the OMNI data
-OMNI_bam_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_OMNI.mRp.clN.sorted.chrM.bam"
-OMNI_bai_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_OMNI.mRp.clN.sorted.chrM.bam.bai"
+OMNI_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
+OMNI_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
 
 # setting the paths for the STD data
-STD_bam_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_STD.mRp.clN.sorted.chrM.bam"
-STD_bai_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_STD.mRp.clN.sorted.chrM.bam.bai"
+STD_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
+STD_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
 
 ```
 
@@ -77,35 +79,125 @@ library(Rsamtools)
 
 # set up the Bamfile object
 bamFile <- BamFile(OMNI_bam_path)
-bamFile
 
-# scan the Bamfile object
-bam <- scanBam(bamFile)
-class(bam)
-names(bam)
-
-# inspect the BAM file??? doesnt seem to be anything there...
-quickBamFlagSummary(OMNI_bamFile)
-
-yieldSize(bamFile) <- 1
-open(bamFile)
-scanBam(bamFile)[[1]]$seq
+### GET RID OF THIS SECTION??
+# how to see how big it is? what the fields are?
 
 ```
 
 
+## Check BAMs
+
 Now that we are familiar with the BAM files were are working with, we can start to use some functions from the package 'ATACseqQC' to generate some ATAC-specific QC plots. For more information on how to use this package see https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html. 
 
+First, lets check our BAMs using the function `bamQC`:
+
+```{r check_BAMs_OMNI}
+library(ATACseqQC)
+
+bamQC(OMNI_bam_path, index = OMNI_bai_path, outPath = NULL)
+
+```
+
+```{r check_BAMs_STD}
+
+bamQC(STD_bam_path, index = STD_bai_path, outPath = NULL)
+
+```
+
+We can see that, for both BAM files, there are only reads mapped to chromosome Y. This is because we subset the BAM files to only include this chromosome. 
 
 ## Quality Control Visualisations: Fragment Size Distribution
 
 Good-quality ATACseq data should display a characteristic pattern when you plot the distribution of the fragment sizes. This is because DNA is packaged into nucleosomes, which are about 147bp in length and cannot be accessed by the Tn5 enzyme. This means that most Tn5 fragments  come from nucleosome-free regions (NFR), and therefore be <100bp long. Fragments can also be created if Tn5 enzymes insert just before and after 1, 2 or 3 nucleosomes. This results in an enrichment of fragments that are ~200, ~400 and ~600bp long. 
 
-```{r bam_QC}
+First we can look at this distribution for the OMNI sample:
+
+```{r frag_size_OMNI}
 library(ATACseqQC)
 
-bamQC(bamFile_OMNI, index = bamIndex_OMNI, outPath = NULL)
+fragSize_OMNI <- fragSizeDist(OMNI_bam_path, "OMNI", index = OMNI_bai_path)
 
-bamQC(bamFile_STD, index = bamIndex_STD, outPath = NULL)
 ```
 
+
+```{r frag_size_STD}
+
+fragSize_STD <- fragSizeDist(STD_bam_path, "STD", index = STD_bai_path)
+
+```
+Alternative way to read in data and plot fragment size distribution:
+```{r frag_size_alt}
+library(GenomicAlignments)
+
+atacReads <- readGAlignmentPairs(bamFile, param = ScanBamParam(mapqFilter = 1, 
+                                                               flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE), what = c("qname", 
+                                                                                                                                    "mapq", "isize"), which = GRanges("chrY", IRanges(1, 63025520))))
+atacReads_read1 <- GenomicAlignments::first(atacReads)
+insertSizes <- abs(elementMetadata(atacReads_read1)$isize)
+head(insertSizes)
+
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+fragLenPlot <- table(insertSizes) %>% data.frame %>% rename(InsertSize = insertSizes, 
+                                                            Count = Freq) %>% mutate(InsertSize = as.numeric(as.vector(InsertSize)), 
+                                                                                     Count = as.numeric(as.vector(Count))) %>% ggplot(aes(x = InsertSize, y = Count)) + 
+  geom_line()
+
+print(fragLenPlot + theme_bw())
+
+```
+
+
+## Loading annotations
+
+Annotations are needed so we can see where the genes are in the genome. They can help us identify if our fragments map to gene bodies, transcription start sites, introns or intergenic regions. 
+
+
+```{r load_annotations}
+
+BiocManager::install("TxDb.Hsapiens.UCSC.hg19.knownGene")
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+genesLocations <- genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+tssLocations <- resize(genesLocations,fix="start",width = 1)
+tssLocations <- tssLocations[seqnames(tssLocations) %in% "chrY"]
+
+print(tssLocations)
+
+```
+
+## Quality Control Visualisations: Transcription Start Site Enrichment
+
+Another sign of good-quality ATACseq data is that most reads should map to transcription start sites (TSSs). This is because TSSs are transcriptionally active and therefore 'open'. 
+
+Something about difference in peaks that are mono and NFR?? based on fragment length??
+
+For more information: https://rockefelleruniversity.github.io/RU_ATACseq/exercises/answers/ATACseq_part2_answers.html. 
+
+```{r TSS_enrichment}
+library(soGGi)
+library(ggplot2)
+
+nucFree <- regionPlot(bamFile = OMNI_bam_path,
+                      testRanges = tssLocations,
+                      style = "point",
+                      format="bam",
+                      paired=TRUE,
+                      minFragmentLength = 0,
+                      maxFragmentLength = 100,
+                      forceFragment = 50)
+
+monoNuc <- regionPlot(bamFile = OMNI_bam_path,
+                      testRanges = tssLocations,
+                      style = "point",
+                      format="bam",
+                      paired=TRUE,
+                      minFragmentLength = 180,
+                      maxFragmentLength = 240,
+                      forceFragment = 80)
+plotRegion(nucFree)+theme_bw()
+plotRegion(monoNuc)+theme_bw()
+
+```
