@@ -1,0 +1,111 @@
+---
+title: "ATACseq_Session_1"
+output: html_document
+date: "2023-01-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Input data origin
+
+H. sapiens paired-end ATAC-seq dataset was obtained from:
+M Ryan Corces et al. An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. Nat Methods. 2017 Oct;14(10):959-962. doi: 10.1038/nmeth.4396.
+
+In this paper, XXXXX they present this new improved ATAC-seq protocol which reduces background. what is the vitro culture system they are using? Collected data using 3 different protocols: Standard, Omni and Fast. Two replicates per protocol. 
+
+Sample information:
+SRA ID	    SAMPLE NAME
+SRR5427884	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
+SRR5427885	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
+SRR5427886	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+SRR5427887	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+SRR5427888	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
+SRR5427889	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
+
+## Installing Packages
+
+In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
+
+Required packages:
+- 'Rsamtools' - a package that allows you to read BAM files
+- 'ATACseqQC' - used to generate quality control plots
+
+Required helper packages:
+- 'BiocManager' - a package that helps us install the above packages
+
+```{r installation, echo = FALSE}
+
+## Install Rsamtools
+source("http://www.bioconductor.org/biocLite.R")
+biocLite(c("Rsamtools")
+
+## Install ATACseqQC
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ATACseqQC")
+
+```
+
+## Importing aligned read data
+
+We have already had a look at the quality of our ATAC-seq data in the multi_qc report. After reads have been preprocessed and aligned, there are some additional ATAC-specific quality control visualisations we can generate. 
+
+To create these plots we first need to import our BAM files and BAM index files. Bam files end in .bam, they include information of aligned sequence data. BAM index files are ....
+
+As these data files are very big we are just looking at a subset - mitochrondrial chromosome.
+
+First we need to read in this data, to do this we need to set the paths, these are relative to our R working directory so make sure to set that as XXX. 
+
+```{r set_paths}
+
+# setting the paths for the OMNI data
+OMNI_bam_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_OMNI.mRp.clN.sorted.chrM.bam"
+OMNI_bai_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_OMNI.mRp.clN.sorted.chrM.bam.bai"
+
+# setting the paths for the STD data
+STD_bam_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_STD.mRp.clN.sorted.chrM.bam"
+STD_bai_path <- "./data/NF-ATACseq_alignment/chrM_subset_bam/GM12878_STD.mRp.clN.sorted.chrM.bam.bai"
+
+```
+
+Now that we have set the paths we can inspect the BAM files to see what information they contain. For now let's just look at the OMNI BAM file using functions from the R package 'Rsamtools'. For more information on how to use Rsamtools see http://www.bioconductor.org/packages/2.13/bioc/vignettes/Rsamtools/inst/doc/Rsamtools-Overview.pdf.  
+
+```{r inspect_bams}
+library(Rsamtools)
+
+# set up the Bamfile object
+bamFile <- BamFile(OMNI_bam_path)
+bamFile
+
+# scan the Bamfile object
+bam <- scanBam(bamFile)
+class(bam)
+names(bam)
+
+# inspect the BAM file??? doesnt seem to be anything there...
+quickBamFlagSummary(OMNI_bamFile)
+
+yieldSize(bamFile) <- 1
+open(bamFile)
+scanBam(bamFile)[[1]]$seq
+
+```
+
+
+Now that we are familiar with the BAM files were are working with, we can start to use some functions from the package 'ATACseqQC' to generate some ATAC-specific QC plots. For more information on how to use this package see https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html. 
+
+
+## Quality Control Visualisations: Fragment Size Distribution
+
+Good-quality ATACseq data should display a characteristic pattern when you plot the distribution of the fragment sizes. This is because DNA is packaged into nucleosomes, which are about 147bp in length and cannot be accessed by the Tn5 enzyme. This means that most Tn5 fragments  come from nucleosome-free regions (NFR), and therefore be <100bp long. Fragments can also be created if Tn5 enzymes insert just before and after 1, 2 or 3 nucleosomes. This results in an enrichment of fragments that are ~200, ~400 and ~600bp long. 
+
+```{r bam_QC}
+library(ATACseqQC)
+
+bamQC(bamFile_OMNI, index = bamIndex_OMNI, outPath = NULL)
+
+bamQC(bamFile_STD, index = bamIndex_STD, outPath = NULL)
+```
+
