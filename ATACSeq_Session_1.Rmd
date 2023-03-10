@@ -1,0 +1,203 @@
+---
+title: "ATACseq_Session_1"
+output: html_document
+date: "2023-01-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Input data origin
+
+H. sapiens paired-end ATAC-seq dataset was obtained from:
+M Ryan Corces et al. An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. Nat Methods. 2017 Oct;14(10):959-962. doi: 10.1038/nmeth.4396.
+
+In this paper Corces et al present a new ATAC-seq protocol which reduces background and enables interrogation of frozen tissues. The human cell line GM12878 was cultured and ATACseq data was collected using 3 different protocols: Standard, Omni and Fast. For each protocol two replicates were collected. 
+
+Data was aligned and annotated for the hg19 reference genome using the NF-core ATACseq pipeline - https://nf-co.re/atacseq. 
+
+Sample information:
+SRA ID	    SAMPLE NAME
+SRR5427884	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
+SRR5427885	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
+SRR5427886	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+SRR5427887	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+SRR5427888	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
+SRR5427889	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
+
+## Installing Packages
+
+In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
+
+Required packages:
+- 'Rsamtools' - a package that allows you to read BAM files
+- 'ATACseqQC' - used to generate quality control plots
+
+Required helper packages:
+- 'BiocManager' - a package that helps us install the above packages
+
+```{r installation, echo = FALSE}
+
+## Install Rsamtools
+source("http://www.bioconductor.org/biocLite.R")
+biocLite(c("Rsamtools")
+
+## Install ATACseqQC
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("ATACseqQC")
+
+```
+
+## Importing aligned read data
+
+We have already had a look at the quality of our ATAC-seq data in the multi_qc report. After reads have been preprocessed and aligned, there are some additional ATAC-specific quality control visualisations we can generate. 
+
+To create these plots we first need to import our BAM files and BAM index files. Bam files end in .bam, they include information of aligned sequence data. BAM index files are ....
+
+As these data files are very big we are just looking at a subset - mitochrondrial chromosome.
+
+First we need to read in this data, to do this we need to set the paths, these are relative to our R working directory so make sure to set that as XXX. 
+
+```{r set_paths}
+
+# setting the paths for the OMNI data
+OMNI_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
+OMNI_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
+
+# setting the paths for the STD data
+STD_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
+STD_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+
+```
+
+Now that we have set the paths we can inspect the BAM files to see what information they contain. For now let's just look at the OMNI BAM file using functions from the R package 'Rsamtools'. For more information on how to use Rsamtools see http://www.bioconductor.org/packages/2.13/bioc/vignettes/Rsamtools/inst/doc/Rsamtools-Overview.pdf.  
+
+```{r inspect_bams}
+library(Rsamtools)
+
+# set up the Bamfile object
+bamFile <- BamFile(OMNI_bam_path)
+
+### GET RID OF THIS SECTION??
+# how to see how big it is? what the fields are?
+
+```
+
+
+## Check BAMs
+
+Now that we are familiar with the BAM files were are working with, we can start to use some functions from the package 'ATACseqQC' to generate some ATAC-specific QC plots. For more information on how to use this package see https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html. 
+
+First, lets check our BAMs using the function `bamQC`:
+
+```{r check_BAMs_OMNI}
+library(ATACseqQC)
+
+bamQC(OMNI_bam_path, index = OMNI_bai_path, outPath = NULL)
+
+```
+
+```{r check_BAMs_STD}
+
+bamQC(STD_bam_path, index = STD_bai_path, outPath = NULL)
+
+```
+
+We can see that, for both BAM files, there are only reads mapped to chromosome Y. This is because we subset the BAM files to only include this chromosome. 
+
+## Quality Control Visualisations: Fragment Size Distribution
+
+Good-quality ATACseq data should display a characteristic pattern when you plot the distribution of the fragment sizes. This is because DNA is packaged into nucleosomes, which are about 147bp in length and cannot be accessed by the Tn5 enzyme. This means that most Tn5 fragments  come from nucleosome-free regions (NFR), and therefore be <100bp long. Fragments can also be created if Tn5 enzymes insert just before and after 1, 2 or 3 nucleosomes. This results in an enrichment of fragments that are ~200, ~400 and ~600bp long. 
+
+First we can look at this distribution for the OMNI sample:
+
+```{r frag_size_OMNI}
+library(ATACseqQC)
+
+fragSize_OMNI <- fragSizeDist(OMNI_bam_path, "OMNI", index = OMNI_bai_path)
+
+```
+
+
+```{r frag_size_STD}
+
+fragSize_STD <- fragSizeDist(STD_bam_path, "STD", index = STD_bai_path)
+
+```
+Alternative way to read in data and plot fragment size distribution:
+```{r frag_size_alt}
+library(GenomicAlignments)
+
+atacReads <- readGAlignmentPairs(bamFile, param = ScanBamParam(mapqFilter = 1, 
+                                                               flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE), what = c("qname", 
+                                                                                                                                    "mapq", "isize"), which = GRanges("chrY", IRanges(1, 63025520))))
+atacReads_read1 <- GenomicAlignments::first(atacReads)
+insertSizes <- abs(elementMetadata(atacReads_read1)$isize)
+head(insertSizes)
+
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+fragLenPlot <- table(insertSizes) %>% data.frame %>% rename(InsertSize = insertSizes, 
+                                                            Count = Freq) %>% mutate(InsertSize = as.numeric(as.vector(InsertSize)), 
+                                                                                     Count = as.numeric(as.vector(Count))) %>% ggplot(aes(x = InsertSize, y = Count)) + 
+  geom_line()
+
+print(fragLenPlot + theme_bw())
+
+```
+
+
+## Loading annotations
+
+Annotations are needed so we can see where the genes are in the genome. They can help us identify if our fragments map to gene bodies, transcription start sites, introns or intergenic regions. 
+
+
+```{r load_annotations}
+
+BiocManager::install("TxDb.Hsapiens.UCSC.hg19.knownGene")
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+genesLocations <- genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
+tssLocations <- resize(genesLocations,fix="start",width = 1)
+tssLocations <- tssLocations[seqnames(tssLocations) %in% "chrY"]
+
+print(tssLocations)
+
+```
+
+## Quality Control Visualisations: Transcription Start Site Enrichment
+
+Another sign of good-quality ATACseq data is that most reads should map to transcription start sites (TSSs). This is because TSSs are transcriptionally active and therefore 'open'. 
+
+Something about difference in peaks that are mono and NFR?? based on fragment length??
+
+For more information: https://rockefelleruniversity.github.io/RU_ATACseq/exercises/answers/ATACseq_part2_answers.html. 
+
+```{r TSS_enrichment}
+library(soGGi)
+library(ggplot2)
+
+nucFree <- regionPlot(bamFile = OMNI_bam_path,
+                      testRanges = tssLocations,
+                      style = "point",
+                      format="bam",
+                      paired=TRUE,
+                      minFragmentLength = 0,
+                      maxFragmentLength = 100,
+                      forceFragment = 50)
+
+monoNuc <- regionPlot(bamFile = OMNI_bam_path,
+                      testRanges = tssLocations,
+                      style = "point",
+                      format="bam",
+                      paired=TRUE,
+                      minFragmentLength = 180,
+                      maxFragmentLength = 240,
+                      forceFragment = 80)
+plotRegion(nucFree)+theme_bw()
+plotRegion(monoNuc)+theme_bw()
+
+```
