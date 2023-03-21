@@ -6,20 +6,19 @@
 
 ## LOAD REQUIRED MODULES
 ml purge
-ml Nextflow/21.10.6
+ml Java/11.0.2
+ml Nextflow/22.10.3
 ml Singularity/3.6.4
 ml Graphviz
 
-export TERM=xterm
-export NXF_VER=21.10.6
-export NXF_SINGULARITY_CACHEDIR=/camp/home/thierya/working/NF_singularity
+export NXF_VER=22.10.3
 
 ## UPDATE PIPLINE
 nextflow pull nf-core/rnaseq
 
 ## RUN alignment
 nextflow run nf-core/rnaseq \
-    -r 3.8 \
+    -r 3.10.1 \
     -c ./conf/test_full_RNA.config \
     --outdir ./output/NF-RNAseq_alignment \
     --email alex.thiery@crick.ac.uk \

@@ -6,13 +6,12 @@
 
 ## LOAD REQUIRED MODULES
 ml purge
-ml Nextflow/21.10.6
+ml Java/11.0.2
+ml Nextflow/22.10.3
 ml Singularity/3.6.4
 ml Graphviz
 
-export TERM=xterm
-export NXF_VER=21.10.6
-export NXF_SINGULARITY_CACHEDIR=/camp/home/thierya/working/NF_singularity
+export NXF_VER=22.10.3
 
 ## UPDATE PIPLINE
 nextflow pull nf-core/atacseq
