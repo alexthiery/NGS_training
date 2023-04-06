@@ -1,0 +1,227 @@
+---
+title: "ATACSeq_Session_2"
+output: html_document
+date: "2023-03-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Installing Packages
+
+In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
+
+Required packages:
+- 'dplyr' and 'data.table' - packages for handling dataframes
+- DESeq2 - package to run differential expression (or for ATAC accessibility) tests
+
+Required helper packages:
+- 'BiocManager' - a package that helps us install the above packages
+
+```{r installation, echo = FALSE}
+
+# Set up params for installation
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.cnr.berkeley.edu/"
+options(repos = r)
+
+# Install BiocManager
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager", repos = "http://cran.us.r-project.org")
+BiocManager::install(version = "3.16")
+
+## Install packages
+install.packages("dplyr")
+install.packages("data.table")
+
+BiocManager::install("DESeq2")
+
+```
+
+# Peak calling outputs
+
+In the last session we worked with the aligned reads directly, however in ATAC seq we can often use peaks instead of all reads. Peaks are regions of the genome where lots of reads have mapped, they are identified by peak calling algorithms such as Macs2. Peak calling can be performed on each sample individually or on all the samples and replicates together. We are going to look at a consensus peak set that was called on our 6 samples (3 conditions, 2 replicates of each). You can see how this consensus peak set appeared in the different samples in the consensus_peaks pdf file. 
+
+There are usually 2 outputs of peak calling: 1) a BED object (either annotated (1.2) or not annotated (1.1)) that describes the genomic coordinates of the peaks and 2) a peak count matrix that shows how often reads map to this peak in each sample/replicate.
+
+## 1.1 Peaks BED
+
+BED files define features along a genome. They include: the name of the feature (in this case 'Interval_X'), the chromosome that the feature is on, the start and end coordinates of the feature and the strand that the feature is on (+ or -). 
+
+```{r read_peak_bed}
+
+# path for the peaks bed file
+peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.bed"
+
+# read in file
+library(data.table)
+peaks_bed <- as.data.frame(read.table(peaks_bed_path, header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+
+# print file
+print(peaks_bed)
+
+```
+### Q: How many peaks do we have?
+A: There are 104,659 rows in 'peaks_bed', and each row corresponds to a peak. 
+
+### Challenge: What are the sizes of the biggest and smallest peaks in the dataframe?
+The dataframe 'peaks_bed' includes the start coordinate and end coordinates, so the difference between the two will give you the size of the peaks. 
+There are a few ways you can calculate peak sizes and identify the biggest one, here is one way which makes use of the package 'dplyr':
+```{r identify_biggest_and_smallest_peak}
+
+library(dplyr)
+
+peaks_bed %>% 
+  mutate(peak_size = V3 - V2 + 1) %>%
+  arrange(peak_size)
+
+```
+The resulting dataframe is ordered by peak size, the smallest size is at the top (145bp) and biggest at the bottom (166bp).
+
+## 1.1 Annotated Peaks BED
+
+In order to give our peak coordinates biological context, we need to know where they are relative to genes and other annotated features of the genome. Annotation of the peaks BED file can be done manually by intersecting two BED files: the peaks BED file and the genome annotations BED file. This can be done using a function called bedtools intersect (https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html). In our case, the NF-core pipeline already includes a step that annotated the peak bed file so we only have to read it in. 
+
+```{r annotate_peak_bed}
+
+annot_peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.annotatePeaks.txt"
+
+annot_peaks_bed <- read.table(annot_peaks_bed_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
+
+print(annot_peaks_bed)
+
+```
+
+Now that we have these peaks and their annotations we can do some investigations eg looking at what regions of the genomes most peaks come from (gene bodies, intergenic, etc. ) 
+
+???Make some pie charts???
+
+## 2 Peak Count Matrix
+
+Now that we know what the peaks are, the next important information is to know how accessible these peaks are between samples. Usually we are interested in peaks that are different between our conditions but not our replicates. This information is stored in the peak count matrix. 
+
+```{r peak_count_matrix}
+
+peak_count_matrix_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.featureCounts.txt"
+
+peak_count_matrix <- read.table(peak_count_matrix_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
+
+print(peak_count_matrix)
+
+```
+### Activity: Can you reorder the peak_count_matrix to confirm that the smallest and largest peak sizes are what we expected?
+```{r reorder_matrix}
+
+library(dplyr)
+
+peak_count_matrix %>% 
+  arrange(Length)
+
+```
+By reordering the peak matrix we can see that the smallest peak is in fact 146bp and largest is 167bp. 
+
+
+This peak count matrix includes count values for our 6 samples (3 conditions, 2 replicates for each), but it also includes other columns with information about the peaks (Chr, Start, End, Strand, Length). So the first thing we want to do is clean up our dataframe to just have our peak counts with clear column names:
+
+```{r cleanup}
+
+# just take counts from data frame
+dim(peak_count_matrix)
+counts <- peak_count_matrix[,7:12]
+dim(counts)
+
+# remove endings of colnames
+colnames(counts) <- gsub("\\..*", "",  colnames(counts))
+
+# add peak names to the first column of the count df
+counts <- counts %>% mutate(peak_ID = peak_count_matrix$Geneid)
+
+# reorder columns
+counts <- counts %>% select(peak_ID, GM12878_STD_REP1, GM12878_STD_REP2, GM12878_FAST_REP1,
+                            GM12878_FAST_REP2, GM12878_OMNI_REP1, GM12878_OMNI_REP2)
+
+```
+
+# DESeq2 analysis
+
+## Setting up DESeq2 object
+
+Now that we've cleaned up the data we can construct our DESeq2 object. A DESeq2 object needs 3 components: 
+1) the cleaned count data, which we have
+2) a metadata table that tells us which samples correspond to which conditions
+3) an experiment design
+
+```{r DESeq2_setup}
+
+library(DESeq2)
+
+# set up metatdata table
+metadata <- data.frame(colnames(counts)[2:7])
+colnames(metadata) <- "sample_name"
+metadata <- metadata %>% 
+  mutate(condition = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 2)) %>%
+  mutate(replicate = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 3))
+
+# set up design?
+
+
+# set up DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = counts, 
+                              colData = metadata, 
+                              design = ~condition, tidy = TRUE)
+
+# look at DESeq2 object
+dds
+
+```
+
+## Running DESeq2 analysis
+
+```{r DESeq2_run}
+
+dds <- DESeq(dds)
+
+```
+
+# DESeq2 results
+
+## Examining results
+
+```{r DESeq2_examine}
+
+res <- results(dds)
+head(results(dds, tidy=TRUE))
+
+summary(res)
+
+res <- res[order(res$padj),]
+head(res)
+
+```
+
+## PCA
+```{r PCA}
+
+vsdata <- vst(dds, blind=FALSE)
+plotPCA(vsdata, intgroup="condition")
+
+```
+
+## Volcano Plot
+```{r volcano_plot}
+
+#reset par
+par(mfrow=c(1,1))
+# Make a basic volcano plot
+with(res, plot(log2FoldChange, -log10(pvalue), pch=20, main="Volcano plot", xlim=c(-3,3)))
+
+# Add colored points: blue if padj<0.01, red if log2FC>1 and padj<0.05)
+with(subset(res, padj<.01 ), points(log2FoldChange, -log10(pvalue), pch=20, col="blue"))
+with(subset(res, padj<.01 & abs(log2FoldChange)>2), points(log2FoldChange, -log10(pvalue), pch=20, col="red"))
+
+```
+
+
+
+
