@@ -6,14 +6,27 @@ output:
     df_print: paged
 ---
 
+</br>
+
+### **ATAC Session 2**
+</br>
+
+We will conduct bulk ATACseq analysis in R using [DESeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential accessibility testing.
+
+This tutorial is focussed on the data objects used during DESeq2 differential expression analysis.
+
+</br>
+
+#### **Setup working environment**
+
+First we need to set up our working environment, including some parameters for the plots we will make later.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(fig.width=8, fig.height=8) 
 ```
 
-# Installing Packages
-
-In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.  
+We first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.  
 
 Required packages:  
 - 'dplyr' and 'data.table' - packages for handling dataframes.    
@@ -28,19 +41,31 @@ Required helper packages:
 r <- getOption("repos")
 r["CRAN"] <- "http://cran.cnr.berkeley.edu/"
 options(repos = r)
-
-# Install BiocManager
 if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager", repos = "http://cran.us.r-project.org")
-BiocManager::install(version = "3.16")
 
-## Install packages
+# Install BiocManager packages
+BiocManager::install(version = "3.16")
+BiocManager::install("DESeq2")
+
+## Install CRAN packages
 install.packages("dplyr")
 install.packages("data.table")
 
-BiocManager::install("DESeq2")
-
 ```
+
+Load packages
+
+```{r, message=FALSE, warning=FALSE}
+library(data.table)
+library(dplyr)
+library(DESeq2)
+library(ggplot2)
+```
+
+</br>
+
+#### **Data pre-processing**
 
 # Peak calling outputs
 
@@ -55,13 +80,6 @@ There are usually 2 outputs of peak calling:
 ### 1.1) Peaks BED
 
 BED files define features along a genome. They include: the name of the feature (in this case 'Interval_X'), the chromosome that the feature is on, the start and end coordinates of the feature and the strand that the feature is on (+ or -). 
-
-```{r load_lib_1, results = 'hide', message=FALSE, warning=FALSE}
-
-library(data.table)
-library(dplyr)
-
-```
 
 ```{r read_peak_bed}
 
@@ -136,8 +154,6 @@ print(head(peak_count_matrix))
 
 ```{r reorder_matrix}
 
-library(dplyr)
-
 peak_count_matrix %>% 
   arrange(Length)
 
@@ -145,7 +161,9 @@ peak_count_matrix %>%
 
 By reordering the peak matrix we can see that the smallest peak is 146bp and largest is 167bp, which matches what we saw before. 
 
-#### Data clean up
+</br>
+
+#### **Prepare peak counts for DESeq2**
 
 This peak count matrix includes count values for our 6 samples (3 conditions, 2 replicates for each), but it also includes other columns with information about the peaks (Chr, Start, End, Strand, Length). So the first thing we want to do is clean up our dataframe to just have our peak counts with clear column names:
 
@@ -166,6 +184,11 @@ counts <- counts %>% mutate(peak_ID = peak_count_matrix$Geneid)
 counts <- counts %>% select(peak_ID, GM12878_STD_REP1, GM12878_STD_REP2, GM12878_FAST_REP1,
                             GM12878_FAST_REP2, GM12878_OMNI_REP1, GM12878_OMNI_REP2)
 
+# make peak IDs the rownames
+counts2 <- counts[,-1]
+rownames(counts2) <- counts[,1]
+counts <- counts2
+
 # check cleaned df
 print(head(counts))
 
@@ -182,75 +205,106 @@ hist(pw, breaks = 100)
 ```
 
 
+</br>
 
+#### **Initialise DESeq2 object**
 
+Now that we have our peak counts and peak annotation dataframe, we are ready to initialise our DESeq2 object.
 
+DESeq2 requires sample metadata in order to know the groupings required for differential expression testing.
+The sample metadata needs to be provided as a dataframe containing the sample names as rownames, an column titled 'Group' which specifies the condition. Additional columns specifying additional covariates can also be added if required.
 
-# DESeq2 analysis
-
-[DeSeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) allows you to run differential expression tests (for RNA-seq data) or differential accessibility tests (for ATAC-seq data) between samples. 
-
-### Setting up DESeq2 object
-
-Now that we've cleaned up the data we can construct our DESeq2 object. A DESeq2 object needs 3 components: 
-1) the cleaned count data, which we have
-2) a metadata table that tells us which samples correspond to which conditions
-3) an experiment design - to specify the sample groupings (ie different experimental conditions)
-
-```{r load_lib3, results = 'hide', message=FALSE, warning=FALSE}
-library(DESeq2)
-library(ggplot2)
-```
-
-First lets create our metadata table:
-
-```{r metadata_setup}
+```{r col_data_setup}
 
 # set up metatdata table
-metadata <- data.frame(colnames(counts)[2:7])
-colnames(metadata) <- "sample_name"
-metadata <- metadata %>% 
-  mutate(condition = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 2)) %>%
-  mutate(replicate = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 3))
+col_data <- data.frame(colnames(counts)[2:7])
+colnames(col_data) <- "sample_name"
+col_data <- col_data %>% 
+  mutate(condition = sapply(strsplit(as.character(col_data$sample_name), "_"), `[`, 2)) %>%
+  mutate(replicate = sapply(strsplit(as.character(col_data$sample_name), "_"), `[`, 3))
 
-print(metadata)
+print(col_data)
 
 ```
 
-Now we can setup the DESeq2 object using our count data, metadata and specifying the experimental design grouping as 'condition'. 
+Now it's time to initialise the DESeq2 object.
 
-We have 3 conditions: STD, FAST and OMNI. Pair-wise comparisons have to be done between 2 different groups, not 3, so we can set the condition 'STD' as our control condition and then compare 'FAST' and 'OMNI' against 'STD'. By default, R will choose a control condition based on alphabetical order. We can overwrite this using the command 'relevel'. 
+The design argument is required to specify the sample groupings used for subsequent differential expression tests. In this example we are just wanting to look at genes differentially expressed between the different cell lines, so our experimental design is to look at gene expression as a function of 'Group'. More complex formulas can be added here to account for additional covariates. See [DESeq2 documentation](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#how-can-i-include-a-continuous-covariate-in-the-design-formula:~:text=and%20baySeq.-,Quick%20start,-Here%20we%20show) for more detail.
 
-
-```{r DESeq2_setup}
-# set up DESeq2 object
-dds <- DESeqDataSetFromMatrix(countData = counts, 
-                              colData = metadata, 
-                              design = ~condition, tidy = TRUE)
-
-# set the control condition as 'STD'
-dds$condition <- droplevels(dds$condition)
-dds$condition <- relevel(dds$condition, ref = "STD")
-
-# look at DESeq2 object
-dds
+``` {r}
+deseq <- DESeqDataSetFromMatrix(counts, design = ~ condition, colData = col_data)
 ```
 
-### Running DESeq2 analysis
-
-How do you find differences between samples?
-To identify genes or peaks that vary between samples, you need to compare the distribution of counts between your sample to see if they are stastically significantly differnet.
-
-What does DESeq2 do?
-1) It estimates 'size factors' and uses these to normalise the sample counts. i.e. if one sample is sequenced more deeply than the others this will be accounted for by this normalisation step. 
-2) It estimates dispersions for each peak. Dispersion refers to the variability in peak accessibility across the samples. It fits a model for this dispersion and uses that to remove noise and account for the fact that peaks which are less accessible usually have higher variability. 
-3) It then tests the data against this model to identify peaks which are differentially accessible between samples. 
-You can find more information about the ins and outs of DESeq2 analysis [here](https://hbctraining.github.io/DGE_workshop_salmon_online/lessons/04b_DGE_DESeq2_analysis.html)
-
-```{r DESeq2_run}
-dds <- DESeq(dds)
+Next I set the reference level of the Group column to STD. Usually this would be set to your control sample, purely to make subsequent fold change calculations relative to your control.
+```{r}
+deseq$Group <- relevel(deseq$condition, ref = "STD")
 ```
 
+An important step in preprocessing is to remove peaks with very low accessibility. This helps to reduce the size of the dataset whilst also removing peaks for which we have not captured meaningful biological variation.
+
+Here I am filtering peaks which have fewer than 5 counts in at least 2 samples
+```{r}
+deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
+```
+
+</br>
+
+#### **Run DESeq2**
+
+The standard differential expression analysis steps are wrapped into a single function, DESeq.
+
+During this step, DESeq2 will:
+  1) Normalise the data usingthe medians of ratios method, which effectively corrects for differences in sequencing depth and RNA composition between samples.
+  2) Calculate gene dispersion estimates
+  3) Fit generalised linear models of gene expression for each gene
+
+```{r}
+deseq <- DESeq(deseq)
+```
+Results tables of specific pairwise differential expression tests can then be retrieved using the *results* function. This extracts a results table with log2 fold changes, p-values and adjusted p-values.
+
+``` {r}
+res <- results(deseq)
+res
+```
+
+``` {r}
+resultsNames(deseq)
+```
+By default, DESeq2 will compare the last variable in the design condition to the reference level previously set using the *relevel* function.
+
+Instead, results for specific pairwise tests of interest can be extracted using the following commands, where *condition* can be replaced with the metadata column containing your variable of interest, and *OMNI* and *FAST* can be replaced with your condition of interest and reference condition respectively.
+
+``` {r}
+res <- results(deseq, name=c("condition_OMNI_vs_FAST"))
+res
+```
+
+We use the DESeq2 function lfcShrink in order to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values.
+
+``` {r}
+res <- lfcShrink(deseq, coef=c("condition_OMNI_vs_FAST"))
+res
+```
+
+A summary table of the results for a given adjusted p-value threshold (alpha) can also easily be printed.
+
+``` {r}
+summary(res, alpha = 0.05)
+```
+
+### now just need to add some plots eg sizeFactors, plotDispEsts
+### then some sample QC plots eg sample-sample correlation and PCA
+
+
+
+
+
+
+
+
+
+##############
 # DESeq2 results
 
 ### 1) Size factors
