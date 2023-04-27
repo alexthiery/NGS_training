@@ -1,25 +1,28 @@
 ---
 title: "ATACSeq_Session_2"
-output: html_document
 date: "2023-03-09"
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=8, fig.height=8) 
 ```
 
 # Installing Packages
 
-In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
+In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.  
 
-Required packages:
-- 'dplyr' and 'data.table' - packages for handling dataframes
-- DESeq2 - package to run differential expression (or for ATAC accessibility) tests
+Required packages:  
+- 'dplyr' and 'data.table' - packages for handling dataframes.    
+- DESeq2 - package to run differential expression (or for ATAC accessibility) tests.   
 
-Required helper packages:
-- 'BiocManager' - a package that helps us install the above packages
+Required helper packages:  
+- 'BiocManager' - a package that helps us install the above packages. 
 
-```{r installation, echo = FALSE}
+```{r installation, results = 'hide', message=FALSE, warning=FALSE}
 
 # Set up params for installation
 r <- getOption("repos")
@@ -41,13 +44,24 @@ BiocManager::install("DESeq2")
 
 # Peak calling outputs
 
-In the last session we worked with the aligned reads directly, however in ATAC seq we can often use peaks instead of all reads. Peaks are regions of the genome where lots of reads have mapped, they are identified by peak calling algorithms such as Macs2. Peak calling can be performed on each sample individually or on all the samples and replicates together. We are going to look at a consensus peak set that was called on our 6 samples (3 conditions, 2 replicates of each). You can see how this consensus peak set appeared in the different samples in the consensus_peaks pdf file. 
+In the last session we worked with the aligned reads directly, however in ATAC-seq data we can often use peaks instead of all reads. Peaks are regions of the genome where lots of reads have mapped, they are identified by peak calling algorithms such as [Macs2](https://hbctraining.github.io/Intro-to-ChIPseq/lessons/05_peak_calling_macs.html). 
 
-There are usually 2 outputs of peak calling: 1) a BED object (either annotated (1.2) or not annotated (1.1)) that describes the genomic coordinates of the peaks and 2) a peak count matrix that shows how often reads map to this peak in each sample/replicate.
+Peak calling can be performed on each sample individually or on all the samples and replicates together. We are going to look at a consensus peak set that was called on our 6 samples (3 conditions, 2 replicates of each). You can see how this consensus peak set appeared in the different samples in the consensus_peaks pdf file. 
 
-## 1.1 Peaks BED
+There are usually 2 outputs of peak calling: 
+1) a Peaks BED object (either not annotated (1.1) or annotated (1.2)) that describes the genomic coordinates of the peaks that have been called        
+2) a Peak Count Matrix that shows how often reads map to this peak in each sample      
+
+### 1.1) Peaks BED
 
 BED files define features along a genome. They include: the name of the feature (in this case 'Interval_X'), the chromosome that the feature is on, the start and end coordinates of the feature and the strand that the feature is on (+ or -). 
+
+```{r load_lib_1, results = 'hide', message=FALSE, warning=FALSE}
+
+library(data.table)
+library(dplyr)
+
+```
 
 ```{r read_peak_bed}
 
@@ -55,33 +69,38 @@ BED files define features along a genome. They include: the name of the feature 
 peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.bed"
 
 # read in file
-library(data.table)
 peaks_bed <- as.data.frame(read.table(peaks_bed_path, header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
 
 # print file
-print(peaks_bed)
+print(head(peaks_bed))
 
 ```
-### Q: How many peaks do we have?
-A: There are 104,659 rows in 'peaks_bed', and each row corresponds to a peak. 
 
-### Challenge: What are the sizes of the biggest and smallest peaks in the dataframe?
+##### Q: How many peaks do we have in total?
+
+A: There are 104,659 rows in 'peaks_bed' (each row corresponds to a peak)
+
+
+##### Challenge: What are the sizes of the biggest and smallest peaks in the dataframe?
+
 The dataframe 'peaks_bed' includes the start coordinate and end coordinates, so the difference between the two will give you the size of the peaks. 
 There are a few ways you can calculate peak sizes and identify the biggest one, here is one way which makes use of the package 'dplyr':
-```{r identify_biggest_and_smallest_peak}
 
-library(dplyr)
+```{r identify_biggest_and_smallest_peak}
 
 peaks_bed %>% 
   mutate(peak_size = V3 - V2 + 1) %>%
   arrange(peak_size)
 
 ```
-The resulting dataframe is ordered by peak size, the smallest size is at the top (145bp) and biggest at the bottom (166bp).
 
-## 1.1 Annotated Peaks BED
+The resulting dataframe is ordered by peak size, the smallest size is at the top (146bp) and biggest at the bottom (167bp). Note that when you print the table on rstudio it may not show you every row to save space!
 
-In order to give our peak coordinates biological context, we need to know where they are relative to genes and other annotated features of the genome. Annotation of the peaks BED file can be done manually by intersecting two BED files: the peaks BED file and the genome annotations BED file. This can be done using a function called bedtools intersect (https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html). In our case, the NF-core pipeline already includes a step that annotated the peak bed file so we only have to read it in. 
+
+### 1.1) Annotated Peaks BED
+
+In order to give our peak coordinates biological context, we need to know where they are relative to genes and other annotated features of the genome. Annotation of the peaks BED file can be done manually by intersecting two BED files: the peaks BED file and the genome annotations BED file. This can be done using a function called [bedtools intersect](https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html). In our case, the NF-core pipeline already includes a step that annotated the peak bed file so we only have to read it in. 
+
 
 ```{r annotate_peak_bed}
 
@@ -89,7 +108,7 @@ annot_peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/br
 
 annot_peaks_bed <- read.table(annot_peaks_bed_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
 
-print(annot_peaks_bed)
+print(head(annot_peaks_bed))
 
 ```
 
@@ -97,7 +116,9 @@ Now that we have these peaks and their annotations we can do some investigations
 
 ???Make some pie charts???
 
-## 2 Peak Count Matrix
+plotAnnoPie(peak_count_matrix) from ChIPseeker package?
+
+### 2) Peak Count Matrix
 
 Now that we know what the peaks are, the next important information is to know how accessible these peaks are between samples. Usually we are interested in peaks that are different between our conditions but not our replicates. This information is stored in the peak count matrix. 
 
@@ -107,10 +128,12 @@ peak_count_matrix_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/
 
 peak_count_matrix <- read.table(peak_count_matrix_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
 
-print(peak_count_matrix)
+print(head(peak_count_matrix))
 
 ```
-### Activity: Can you reorder the peak_count_matrix to confirm that the smallest and largest peak sizes are what we expected?
+
+##### Activity: Can you reorder the peak_count_matrix to confirm that the smallest and largest peak sizes are what we expected?
+
 ```{r reorder_matrix}
 
 library(dplyr)
@@ -119,8 +142,10 @@ peak_count_matrix %>%
   arrange(Length)
 
 ```
-By reordering the peak matrix we can see that the smallest peak is in fact 146bp and largest is 167bp. 
 
+By reordering the peak matrix we can see that the smallest peak is 146bp and largest is 167bp, which matches what we saw before. 
+
+#### Data clean up
 
 This peak count matrix includes count values for our 6 samples (3 conditions, 2 replicates for each), but it also includes other columns with information about the peaks (Chr, Start, End, Strand, Length). So the first thing we want to do is clean up our dataframe to just have our peak counts with clear column names:
 
@@ -141,20 +166,45 @@ counts <- counts %>% mutate(peak_ID = peak_count_matrix$Geneid)
 counts <- counts %>% select(peak_ID, GM12878_STD_REP1, GM12878_STD_REP2, GM12878_FAST_REP1,
                             GM12878_FAST_REP2, GM12878_OMNI_REP1, GM12878_OMNI_REP2)
 
+# check cleaned df
+print(head(counts))
+
 ```
+
+```{r counts_distribution}
+
+boxplot(counts$GM12878_STD_REP1)
+hist(counts$GM12878_STD_REP1, breaks = 100)
+pw = log(counts$GM12878_STD_REP1 + 1)
+boxplot(pw)
+hist(pw, breaks = 100)
+
+```
+
+
+
+
+
 
 # DESeq2 analysis
 
-## Setting up DESeq2 object
+[DeSeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) allows you to run differential expression tests (for RNA-seq data) or differential accessibility tests (for ATAC-seq data) between samples. 
+
+### Setting up DESeq2 object
 
 Now that we've cleaned up the data we can construct our DESeq2 object. A DESeq2 object needs 3 components: 
 1) the cleaned count data, which we have
 2) a metadata table that tells us which samples correspond to which conditions
-3) an experiment design
+3) an experiment design - to specify the sample groupings (ie different experimental conditions)
 
-```{r DESeq2_setup}
-
+```{r load_lib3, results = 'hide', message=FALSE, warning=FALSE}
 library(DESeq2)
+library(ggplot2)
+```
+
+First lets create our metadata table:
+
+```{r metadata_setup}
 
 # set up metatdata table
 metadata <- data.frame(colnames(counts)[2:7])
@@ -163,52 +213,123 @@ metadata <- metadata %>%
   mutate(condition = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 2)) %>%
   mutate(replicate = sapply(strsplit(as.character(metadata$sample_name), "_"), `[`, 3))
 
-# set up design?
+print(metadata)
+
+```
+
+Now we can setup the DESeq2 object using our count data, metadata and specifying the experimental design grouping as 'condition'. 
+
+We have 3 conditions: STD, FAST and OMNI. Pair-wise comparisons have to be done between 2 different groups, not 3, so we can set the condition 'STD' as our control condition and then compare 'FAST' and 'OMNI' against 'STD'. By default, R will choose a control condition based on alphabetical order. We can overwrite this using the command 'relevel'. 
 
 
+```{r DESeq2_setup}
 # set up DESeq2 object
 dds <- DESeqDataSetFromMatrix(countData = counts, 
                               colData = metadata, 
                               design = ~condition, tidy = TRUE)
 
+# set the control condition as 'STD'
+dds$condition <- droplevels(dds$condition)
+dds$condition <- relevel(dds$condition, ref = "STD")
+
 # look at DESeq2 object
 dds
-
 ```
 
-## Running DESeq2 analysis
+### Running DESeq2 analysis
+
+How do you find differences between samples?
+To identify genes or peaks that vary between samples, you need to compare the distribution of counts between your sample to see if they are stastically significantly differnet.
+
+What does DESeq2 do?
+1) It estimates 'size factors' and uses these to normalise the sample counts. i.e. if one sample is sequenced more deeply than the others this will be accounted for by this normalisation step. 
+2) It estimates dispersions for each peak. Dispersion refers to the variability in peak accessibility across the samples. It fits a model for this dispersion and uses that to remove noise and account for the fact that peaks which are less accessible usually have higher variability. 
+3) It then tests the data against this model to identify peaks which are differentially accessible between samples. 
+You can find more information about the ins and outs of DESeq2 analysis [here](https://hbctraining.github.io/DGE_workshop_salmon_online/lessons/04b_DGE_DESeq2_analysis.html)
 
 ```{r DESeq2_run}
-
 dds <- DESeq(dds)
-
 ```
 
 # DESeq2 results
 
-## Examining results
+### 1) Size factors
+
+Size factors are the values for which accessibility in each sample is scaled for in order to account for sequencing depth. Further information as to why and how these size factors are calculated can be found [here](https://hbctraining.github.io/DGE_workshop/lessons/02_DGE_count_normalization.html).
+
+
+```{r sizefactors}
+sizeFactors(dds)
+```
+
+### 2) Dispersion estimates
+
+What is dispersion?
+Dispersion is the within-group variability that describes how much the variance deviates from the mean. This is important because for gene or peak counts, variance does not equal the mean. Usually, genes or peaks which are lowly expressed or accessible have higher variance compared to genes or peaks which are highly expressed/accessible. Dispersion estimates reflect the variance in gene expression or peak accessibility for a given mean value. 
+
+We use the DESeq2 function 'lfcShrink' to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values.
+
+``` {r lfcshrink}
+res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm")
+```
+
+We can visualise the dipersion before and after shrinking. 
+
+```{r dispersion_plot}
+
+plotDispEsts(dds)
+
+```
+
+?? Maybe mention LRT if your conditions are continuous rather than categorical 
+
+
+
+### Examining results
+
+Can see here when we print out he results 'res' that the test we have performed was OMNI condition vs the STD condition. 
+We can also specific which pairwise test we want to extract from the dds object using the 'contrast' parameter. 
 
 ```{r DESeq2_examine}
 
 res <- results(dds)
-head(results(dds, tidy=TRUE))
+print(res)
 
-summary(res)
+res_1 <- results(dds, contrast=c("condition","FAST","STD"))
+print(res_1)
 
+res_1 <- results(dds, contrast=c("condition","FAST","OMNI"))
+
+```
+You can reorder the results based on the p values
+
+```{r deseq2_res_reorder}
 res <- res[order(res$padj),]
 head(res)
-
 ```
 
-## PCA
-```{r PCA}
 
+
+### PCA
+
+A principle component analysis (PCA) plot is a good way to check that your replicates are similar to each other but different from the replicates of another condition. 
+
+
+```{r PCA, fig.height = 10, fig.width = 5}
+
+# calculate PCA
 vsdata <- vst(dds, blind=FALSE)
-plotPCA(vsdata, intgroup="condition")
+
+# reset par
+par(mfrow=c(1,1))
+
+# make plot
+plot <- plotPCA(vsdata, intgroup="condition")
+plot + coord_fixed(ratio = 1.5)
 
 ```
 
-## Volcano Plot
+### Volcano Plot
 ```{r volcano_plot}
 
 #reset par
