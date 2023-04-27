@@ -27,8 +27,6 @@ This will open up an Rstudio session with all the scripts and data required to r
 ### **R tutorial 1**
 </br>
 
-With each session outlined below, you will also find an homework task and corresponding answers. This is a great way to test that you have understood the basic concepts highlighted in the sessions, and that will start to show you how to apply these to RNAseq analysis.
-
 We will conduct bulk RNAseq analysis in R using [DESeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential expression testing.
 
 This tutorial is focussed on the data objects used during DESeq2 differential expression analysis.
@@ -115,10 +113,19 @@ read_counts <- read_counts %>% mutate(across(where(is.numeric), as.integer))
 read_counts[,-c(1:2)] <- apply(read_counts[,-c(1:2)], 2, as.integer)
 ```
 
+Before we load our data in to DESeq2, we first want to set the gene names as the rownames of the read_counts object, we then want to remove the gene_id and gene_annotation columns from our dataframe as DESeq2 expects a dataframe containing only count data.
+
+``` {r}
+rownames(read_counts) <- read_counts$gene_name
+read_counts[,1:2] <- NULL
+head(read_counts)
+```
+
+
 Finally save the new readcounts output with unique gene ids, unique gene names and sample read counts as a CSV for future use
 
 ``` {r}
-write.csv(read_counts, paste0(output_path, "read_counts.csv"), row.names = F)
+write.csv(read_counts, paste0(output_path, "read_counts.csv"), row.names = TRUE)
 ```
 
 </br>
@@ -126,14 +133,6 @@ write.csv(read_counts, paste0(output_path, "read_counts.csv"), row.names = F)
 #### **Initialise DESeq2 object**
 
 Now that we have our read counts and gene annotation dataframe, we are ready to initialise our DESeq2 object.
-
-For this we first want to set the gene names as the rownames of the read_counts object, we then want to remove the gene_id and gene_annotation columns from our dataframe as DESeq2 expects a dataframe containing only counts.
-
-``` {r}
-rownames(read_counts) <- read_counts$gene_name
-read_counts[,1:2] <- NULL
-```
-
 
 DESeq2 requires sample metadata in order to know the groupings required for differential expression testing.
 
@@ -175,37 +174,89 @@ deseq$Group <- relevel(deseq$Group, ref = "GM12878")
 
 An important step in RNAseq preprocessing is to remove genes with very low expression. This helps to reduce the size of the dataset whilst also removing genes for which we have not captured meaningful biological variation.
 
-Here I am filtering genes which have fewer than 10 readcounts across all samples
+Here I am filtering genes which have fewer than 5 counts in at least 2 samples
 ```{r}
-deseq <- deseq[rowSums(counts(deseq)) >= 10, ]
+deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
 ```
 
 </br>
 
 #### **Run DESeq2**
 
-DESeq2 will run count normalisation using the medians of ratios method, which effectively corrects for differences in sequencing depth between samples.
+The standard differential expression analysis steps are wrapped into a single function, DESeq.
+
+During this step, DESeq2 will:
+  1) Normalise the data usingthe medians of ratios method, which effectively corrects for differences in sequencing depth and RNA composition between samples.
+  2) Calculate gene dispersion estimates
+  3) Fit generalised linear models of gene expression for each gene
 
 ```{r}
 deseq <- DESeq(deseq)
 ```
+Results tables of specific pairwise differential expression tests can then be retrieved using the *results* function. This extracts a results table with log2 fold changes, p-values and adjusted p-values.
 
-The size factors shown below are the values for which gene expression in each sample is scaled for in order to account for sequencing depth and RNA composition. Further information as to why and how these size factors are calculated can be found [here](https://hbctraining.github.io/DGE_workshop/lessons/02_DGE_count_normalization.html).
+``` {r}
+res <- results(deseq)
+res
+```
+
+``` {r}
+resultsNames(deseq)
+```
+By default, DESeq2 will compare the last variable in the design condition to the reference level previously set using the *relevel* function.
+
+Instead, results for specific pairwise tests of interest can be extracted using the following commands, where *Group* can be replaced with the metadata column containing your variable of interest, and *H1* and *K562* can be replaced with your condition of interest and reference condition respectively.
+
+``` {r}
+res <- results(deseq, name=c("Group_H1_vs_GM12878"))
+res
+```
+
+We use the DESeq2 function lfcShrink in order to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values.
+
+``` {r}
+res <- lfcShrink(deseq, coef=c("Group_H1_vs_GM12878"), type = 'apeglm')
+res
+```
+
+
+A summary table of the results for a given adjusted p-value threshold (alpha) can also easily be printed.
+
+``` {r}
+summary(res, alpha = 0.05)
+```
+
+Ok, so we have seen how to run DESeq2 DEA, now we want to actually visualise the quality f
+
+
+The size factors shown below are the values for which gene expression in each sample is scaled for in order to account for sequencing depth and RNA composition.
 ```{r}
 sizeFactors(deseq)
 ```
 
+After read counts have been normalised, DESeq2 calculates gene dispersion estimates. Gene dispersion represents gene variance adjusted for gene expression level.
+
+A more detailed explanation of how gene dispersion is calculated can be found in the '[Introduction to DESeq2](https://moodle.learninghub.kingshealthpartners.org/course/view.php?id=353&section=5)' section of this course.
 
 
 ``` {r}
 plotDispEsts(deseq)
 ```
 
+``` {r}
+res <- results(deseq)
+res
+```
 
-We use the DESeq2 function lfcShrink in order to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values.
+
+
+
+
+
+
 
 ``` {r}
-res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm")
+# res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm")
 ```
 
 </br>
@@ -220,353 +271,353 @@ res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm")
 
 
 
-# set plot colours
-plot_colours <- list(Group = c(GM12878 = "#48d1cc", H1 = "#f55f20", K562 = "#f55f20", MCF7 = "#f55f20"))
+<!-- # set plot colours -->
+<!-- plot_colours <- list(Group = c(GM12878 = "#48d1cc", H1 = "#f55f20", K562 = "#f55f20", MCF7 = "#f55f20")) -->
 
 
 
 
-We use the DESeq2 function lfcShrink in order to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values.
+<!-- We use the DESeq2 function lfcShrink in order to calculate more accurate log2FC estimates. This uses information across all genes to shrink LFC when a gene has low counts or high dispersion values. -->
 
-# ``` {r}
-# # Run lfcShrink
-# res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm")
-# 
-# # Add gene names to shrunken LFC dataframe
-# res$gene_name <- gene_annotations$gene_name[match(rownames(res), gene_annotations$gene_id)]
-# ```
-
-</br>
-
-Plot MA with cutoff for significant genes = padj < 0.05.
-
-<details><summary class="box">Code</summary>
-<p>
-
-# ``` {r}
-# png(paste0(output_path, "MA_plot.png"), height = 20, width = 25, family = 'Arial', units = "cm", res = 400)
-# DESeq2::plotMA(res, alpha = 0.05)
-# graphics.off()
-# ```
-
-</details>
-
-<img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/MA_plot.png">
-
-</br>
-
-Plot volcano plot with padj < 0.05 and abs(fold change) > 1.5.
-
-<details><summary class="box">Code</summary>
-<p>
-
-<!-- ``` {r} -->
-<!-- volc_dat <- as.data.frame(res[,-6]) -->
-
-<!-- # add gene name to volcano data -->
-<!-- volc_dat$gene <- gene_annotations$gene_name[match(rownames(volc_dat), gene_annotations$gene_id)] -->
-
-<!-- # label significance -->
-<!-- volc_dat <- volc_dat %>% -->
-<!--   filter(!is.na(padj)) %>% -->
-<!--   mutate(sig = case_when((padj < 0.05 & log2FoldChange > 1.5) == 'TRUE' ~ 'upregulated', -->
-<!--                          (padj < 0.05 & log2FoldChange < -1.5) == 'TRUE' ~ 'downregulated', -->
-<!--                          (padj >= 0.05 | abs(log2FoldChange) <= 1.5) == 'TRUE' ~ 'not sig')) %>% -->
-<!--   arrange(abs(padj)) -->
-
-<!-- # label outliers with triangles for volcano plot -->
-<!-- volc_dat <- volc_dat %>% -->
-<!--   mutate(shape = ifelse(abs(log2FoldChange) > 3 | -log10(padj) > 50, "triangle", "circle")) %>% -->
-<!--   mutate(log2FoldChange = ifelse(log2FoldChange > 3, 3, log2FoldChange)) %>% -->
-<!--   mutate(log2FoldChange = ifelse(log2FoldChange < -3, -3, log2FoldChange)) %>% -->
-<!--   mutate('-log10(padj)' = ifelse(-log10(padj) > 50, 50, -log10(padj))) -->
-
-
-<!-- # select genes to add as labels on volcano plot -->
-<!-- otic_genes <- c('MEF2C', 'SOX10', 'SOX8', 'ZIC1', 'ZIC2', 'DACT2', 'LEF1', 'ZCCHC24', 'RNF122') -->
-<!-- epibranchial_genes <- c('PRDM1', 'VGLL2', 'PDLIM1', 'KRT18', 'ISL1', 'UPK1B', 'TFAP2E', 'NELL1') -->
-
-<!-- png(paste0(output_path, "volcano.png"), width = 11.5, height = 7, family = 'Arial', units = "cm", res = 500) -->
-<!-- ggplot(volc_dat, aes(log2FoldChange, `-log10(padj)`, shape=shape, label = gene)) + -->
-<!--   geom_point(aes(colour = sig, fill = sig), size = 1) + -->
-<!--   scale_fill_manual(breaks = c("not sig", "downregulated", "upregulated"), -->
-<!--                     values = alpha(c(plot_colours$Group[1], "#c1c1c1", plot_colours$Group[2]), 0.3)) + -->
-<!--   scale_color_manual(breaks = c("not sig", "downregulated", "upregulated"), -->
-<!--                      values= c(plot_colours$Group[1], "#c1c1c1", plot_colours$Group[2])) + -->
-<!--   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), -->
-<!--         panel.background = element_blank(), axis.line = element_line(colour = "black"), -->
-<!--         text = element_text(family = "", color = "grey20"), -->
-<!--         legend.position = "none", legend.title = element_blank()) + -->
-<!--   geom_text_repel(data = subset(volc_dat, gene %in% c(otic_genes, epibranchial_genes)), min.segment.length = 0, segment.size  = 0.6, segment.color = "black") + -->
-<!--   xlab('log2FC (Lmx1a_E1 - Sox3U3)') + -->
-<!--   theme(legend.position = "none") -->
-<!-- graphics.off() -->
-<!-- ``` -->
-
-<!-- </details> -->
+<!-- # ``` {r} -->
+<!-- # # Run lfcShrink -->
+<!-- # res <- lfcShrink(deseq, coef="Group_Lmx1a_E1_vs_Sox3U3", type="apeglm") -->
+<!-- #  -->
+<!-- # # Add gene names to shrunken LFC dataframe -->
+<!-- # res$gene_name <- gene_annotations$gene_name[match(rownames(res), gene_annotations$gene_id)] -->
+<!-- # ``` -->
 
 <!-- </br> -->
 
-<!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/volcano.png"> -->
-
-<!-- </br> -->
-
-<!-- Generate csv for raw counts, normalised counts, and differential expression output. -->
+<!-- Plot MA with cutoff for significant genes = padj < 0.05. -->
 
 <!-- <details><summary class="box">Code</summary> -->
 <!-- <p> -->
 
-<!-- ``` {r} -->
-<!-- # raw counts dataframe -->
-<!-- raw_counts <- as.data.frame(counts(deseq)) -->
-<!-- colnames(raw_counts) <- paste0("counts_", colnames(raw_counts)) -->
-<!-- raw_counts$gene_id <- rownames(raw_counts) -->
-
-<!-- # normalised counts dataframe -->
-<!-- norm_counts <- as.data.frame(counts(deseq, normalized=TRUE)) -->
-<!-- colnames(norm_counts) <- paste0("norm_size.adj_", colnames(norm_counts)) -->
-<!-- norm_counts$gene_id <- rownames(norm_counts) -->
-
-<!-- # differential expression statistics dataframe -->
-<!-- DE_res <- as.data.frame(res) -->
-<!-- DE_res$gene_id <- rownames(DE_res) -->
-
-<!-- # merge raw_counts, norm_counts and DE_res together into a single dataframe -->
-<!-- all_dat <- merge(raw_counts, norm_counts, by = 'gene_id') -->
-<!-- all_dat <- merge(all_dat, DE_res, by = 'gene_id') -->
-
-<!-- # move position of gene names column -->
-<!-- all_dat <- all_dat[,c(1, ncol(all_dat), 2:{ncol(all_dat)-1})] -->
-
-<!-- # Find which genes are up and downregulated following differential expression analysis -->
-<!-- res_up <- all_dat[which(all_dat$padj < 0.05 & all_dat$log2FoldChange > 1.5), ] -->
-<!-- res_up <- res_up[order(-res_up$log2FoldChange),] -->
-
-<!-- res_down <- all_dat[which(all_dat$padj < 0.05 & all_dat$log2FoldChange < -1.5), ] -->
-<!-- res_down <- res_down[order(res_down$log2FoldChange),] -->
-
-<!-- nrow(res_up) -->
-<!-- nrow(res_down) -->
-<!-- # 422 genes DE with padj 0.05 & abs(logFC) > 1.5 (103 upregulated, 319 downregulated) -->
-
-
-<!-- # Write DE data as a csv -->
-<!-- res_de <- rbind(res_up, res_down) %>% arrange(-log2FoldChange) -->
-
-<!-- cat("This table shows the differential expression results for genes with absolute log2FC > 1.5 and adjusted p-value < 0.05 when comparing Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) -->
-<!-- Reads are aligned to Galgal6 \n -->
-<!-- Statistics: -->
-<!-- Normalised count: read counts adjusted for library size -->
-<!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples -->
-<!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", -->
-<!--     file = paste0(output_path, "Lmx1a_E1_SupplementaryData_1.csv")) -->
-<!-- write.table(res_de, paste0(output_path, "Lmx1a_E1_SupplementaryData_1.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") -->
-
-
-<!-- # non-DE genes -->
-<!-- res_remain <- all_dat[!rownames(all_dat) %in% rownames(res_up) & !rownames(all_dat) %in% rownames(res_down),] -->
-<!-- res_remain <- res_remain[order(-res_remain$log2FoldChange),] -->
-
-<!-- # Make a single dataframe with ordered rows -->
-<!-- all_dat <- rbind(res_up, res_down, res_remain) -->
-
-<!-- # Write all data as a csv -->
-<!-- cat("This table shows the differential expression results for all genes when comparing Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) -->
-<!-- Reads are aligned to Galgal6 \n -->
-<!-- Statistics: -->
-<!-- Normalised count: read counts adjusted for library size -->
-<!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples -->
-<!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", -->
-<!--     file = paste0(output_path, "Lmx1a_E1_process_output_1.csv")) -->
-<!-- write.table(all_dat, paste0(output_path, "Lmx1a_E1_process_output_1.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") -->
-<!-- ``` -->
+<!-- # ``` {r} -->
+<!-- # png(paste0(output_path, "MA_plot.png"), height = 20, width = 25, family = 'Arial', units = "cm", res = 400) -->
+<!-- # DESeq2::plotMA(res, alpha = 0.05) -->
+<!-- # graphics.off() -->
+<!-- # ``` -->
 
 <!-- </details> -->
 
-<!-- </br> -->
-
-<!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_SupplementaryData_1.csv" download>Download differential expression results (absolute log2FC > 1.5 and adjusted p-value < 0.05) - SuppData1</a> -->
-
-<!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_process_output_1.csv" download>Download differential expression results for all genes.</a> -->
+<!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/MA_plot.png"> -->
 
 <!-- </br> -->
 
-<!-- </br> -->
-
-<!-- Plot sample-sample distances, PCA plot and correlogram to show relationship between samples. -->
+<!-- Plot volcano plot with padj < 0.05 and abs(fold change) > 1.5. -->
 
 <!-- <details><summary class="box">Code</summary> -->
 <!-- <p> -->
 
-<!-- ``` {r} -->
-<!-- # To prevent the highest expressed genes from dominating when clustering we need to rlog (regularised log) transform the data -->
-<!-- rld <- rlog(deseq, blind=FALSE) -->
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- volc_dat <- as.data.frame(res[,-6]) --> -->
 
-<!-- # Plot sample correlogram -->
-<!-- png(paste0(output_path, "SampleCorrelogram.png"), height = 17, width = 17, family = 'Arial', units = "cm", res = 400) -->
-<!-- corrgram::corrgram(as.data.frame(assay(rld)), order=TRUE, lower.panel=corrgram::panel.cor, -->
-<!--                    upper.panel=corrgram::panel.pts, text.panel=corrgram::panel.txt, -->
-<!--                    main="Correlogram of rlog sample expression", cor.method = 'pearson') -->
-<!-- graphics.off() -->
+<!-- <!-- # add gene name to volcano data --> -->
+<!-- <!-- volc_dat$gene <- gene_annotations$gene_name[match(rownames(volc_dat), gene_annotations$gene_id)] --> -->
 
-<!-- # Plot sample distance heatmap -->
-<!-- sample_dists <- dist(t(assay(rld))) -->
+<!-- <!-- # label significance --> -->
+<!-- <!-- volc_dat <- volc_dat %>% --> -->
+<!-- <!--   filter(!is.na(padj)) %>% --> -->
+<!-- <!--   mutate(sig = case_when((padj < 0.05 & log2FoldChange > 1.5) == 'TRUE' ~ 'upregulated', --> -->
+<!-- <!--                          (padj < 0.05 & log2FoldChange < -1.5) == 'TRUE' ~ 'downregulated', --> -->
+<!-- <!--                          (padj >= 0.05 | abs(log2FoldChange) <= 1.5) == 'TRUE' ~ 'not sig')) %>% --> -->
+<!-- <!--   arrange(abs(padj)) --> -->
 
-<!-- sampleDistMatrix <- as.matrix(sample_dists) -->
-<!-- rownames(sampleDistMatrix) <- paste(colnames(rld)) -->
-<!-- colnames(sampleDistMatrix) <- paste(colnames(rld)) -->
-<!-- colours = colorRampPalette(rev(brewer.pal(9, "Blues")))(255) -->
+<!-- <!-- # label outliers with triangles for volcano plot --> -->
+<!-- <!-- volc_dat <- volc_dat %>% --> -->
+<!-- <!--   mutate(shape = ifelse(abs(log2FoldChange) > 3 | -log10(padj) > 50, "triangle", "circle")) %>% --> -->
+<!-- <!--   mutate(log2FoldChange = ifelse(log2FoldChange > 3, 3, log2FoldChange)) %>% --> -->
+<!-- <!--   mutate(log2FoldChange = ifelse(log2FoldChange < -3, -3, log2FoldChange)) %>% --> -->
+<!-- <!--   mutate('-log10(padj)' = ifelse(-log10(padj) > 50, 50, -log10(padj))) --> -->
 
-<!-- png(paste0(output_path, "SampleDist.png"), height = 12, width = 15, family = 'Arial', units = "cm", res = 400) -->
-<!-- pheatmap(sampleDistMatrix, color = colours) -->
-<!-- graphics.off() -->
 
-<!-- # Plot sample PCA -->
-<!-- png(paste0(output_path, "SamplePCA.png"), height = 12, width = 12, family = 'Arial', units = "cm", res = 400) -->
-<!-- plotPCA(rld, intgroup = "Group") + -->
-<!--   scale_color_manual(values=plot_colours$Group) + -->
-<!--   theme(aspect.ratio=1, -->
-<!--         panel.background = element_rect(fill = "white", colour = "black")) -->
-<!-- graphics.off() -->
-<!-- ``` -->
+<!-- <!-- # select genes to add as labels on volcano plot --> -->
+<!-- <!-- otic_genes <- c('MEF2C', 'SOX10', 'SOX8', 'ZIC1', 'ZIC2', 'DACT2', 'LEF1', 'ZCCHC24', 'RNF122') --> -->
+<!-- <!-- epibranchial_genes <- c('PRDM1', 'VGLL2', 'PDLIM1', 'KRT18', 'ISL1', 'UPK1B', 'TFAP2E', 'NELL1') --> -->
 
-<!-- </br> -->
+<!-- <!-- png(paste0(output_path, "volcano.png"), width = 11.5, height = 7, family = 'Arial', units = "cm", res = 500) --> -->
+<!-- <!-- ggplot(volc_dat, aes(log2FoldChange, `-log10(padj)`, shape=shape, label = gene)) + --> -->
+<!-- <!--   geom_point(aes(colour = sig, fill = sig), size = 1) + --> -->
+<!-- <!--   scale_fill_manual(breaks = c("not sig", "downregulated", "upregulated"), --> -->
+<!-- <!--                     values = alpha(c(plot_colours$Group[1], "#c1c1c1", plot_colours$Group[2]), 0.3)) + --> -->
+<!-- <!--   scale_color_manual(breaks = c("not sig", "downregulated", "upregulated"), --> -->
+<!-- <!--                      values= c(plot_colours$Group[1], "#c1c1c1", plot_colours$Group[2])) + --> -->
+<!-- <!--   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), --> -->
+<!-- <!--         panel.background = element_blank(), axis.line = element_line(colour = "black"), --> -->
+<!-- <!--         text = element_text(family = "", color = "grey20"), --> -->
+<!-- <!--         legend.position = "none", legend.title = element_blank()) + --> -->
+<!-- <!--   geom_text_repel(data = subset(volc_dat, gene %in% c(otic_genes, epibranchial_genes)), min.segment.length = 0, segment.size  = 0.6, segment.color = "black") + --> -->
+<!-- <!--   xlab('log2FC (Lmx1a_E1 - Sox3U3)') + --> -->
+<!-- <!--   theme(legend.position = "none") --> -->
+<!-- <!-- graphics.off() --> -->
+<!-- <!-- ``` --> -->
 
-<!-- </details> -->
+<!-- <!-- </details> --> -->
 
-<!-- </br> -->
+<!-- <!-- </br> --> -->
 
-<!-- <div class="tab"> -->
-<!--   <button class="tablinks" style="display: block;" onclick="openTab(event, 'Sample Correlogram')">Sample Correlogram</button> -->
-<!--   <button class="tablinks" onclick="openTab(event, 'Sample-Sample Distance')">Sample-Sample Distance</button> -->
-<!--   <button class="tablinks" onclick="openTab(event, 'Sample PCA')">Sample PCA</button> -->
-<!-- </div> -->
+<!-- <!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/volcano.png"> --> -->
 
-<!-- </br> -->
+<!-- <!-- </br> --> -->
 
-<!-- <div id="Sample Correlogram" class="tabcontent"> -->
-<!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SampleCorrelogram.png"> -->
-<!-- </div> -->
+<!-- <!-- Generate csv for raw counts, normalised counts, and differential expression output. --> -->
 
-<!-- <div id="Sample-Sample Distance" class="tabcontent"> -->
-<!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SampleDist.png"> -->
-<!-- </div> -->
+<!-- <!-- <details><summary class="box">Code</summary> --> -->
+<!-- <!-- <p> --> -->
 
-<!-- <div id="Sample PCA" class="tabcontent"> -->
-<!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SamplePCA.png"> -->
-<!-- </div> -->
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- # raw counts dataframe --> -->
+<!-- <!-- raw_counts <- as.data.frame(counts(deseq)) --> -->
+<!-- <!-- colnames(raw_counts) <- paste0("counts_", colnames(raw_counts)) --> -->
+<!-- <!-- raw_counts$gene_id <- rownames(raw_counts) --> -->
 
-<!-- </br> -->
+<!-- <!-- # normalised counts dataframe --> -->
+<!-- <!-- norm_counts <- as.data.frame(counts(deseq, normalized=TRUE)) --> -->
+<!-- <!-- colnames(norm_counts) <- paste0("norm_size.adj_", colnames(norm_counts)) --> -->
+<!-- <!-- norm_counts$gene_id <- rownames(norm_counts) --> -->
 
-<!-- </br> -->
+<!-- <!-- # differential expression statistics dataframe --> -->
+<!-- <!-- DE_res <- as.data.frame(res) --> -->
+<!-- <!-- DE_res$gene_id <- rownames(DE_res) --> -->
 
-<!-- Subset differentially expressed genes (adjusted p-value < 0.05, absolute log2FC > 1.5). -->
+<!-- <!-- # merge raw_counts, norm_counts and DE_res together into a single dataframe --> -->
+<!-- <!-- all_dat <- merge(raw_counts, norm_counts, by = 'gene_id') --> -->
+<!-- <!-- all_dat <- merge(all_dat, DE_res, by = 'gene_id') --> -->
 
-<!-- ``` {r} -->
-<!-- res_sub <- res[which(res$padj < 0.05 & abs(res$log2FoldChange) > 1.5), ] -->
-<!-- res_sub <- res_sub[order(-res_sub$log2FoldChange),] -->
-<!-- ``` -->
+<!-- <!-- # move position of gene names column --> -->
+<!-- <!-- all_dat <- all_dat[,c(1, ncol(all_dat), 2:{ncol(all_dat)-1})] --> -->
 
-<!-- </br> -->
+<!-- <!-- # Find which genes are up and downregulated following differential expression analysis --> -->
+<!-- <!-- res_up <- all_dat[which(all_dat$padj < 0.05 & all_dat$log2FoldChange > 1.5), ] --> -->
+<!-- <!-- res_up <- res_up[order(-res_up$log2FoldChange),] --> -->
 
-<!-- Plot heatmap of differentially expressed genes. -->
+<!-- <!-- res_down <- all_dat[which(all_dat$padj < 0.05 & all_dat$log2FoldChange < -1.5), ] --> -->
+<!-- <!-- res_down <- res_down[order(res_down$log2FoldChange),] --> -->
 
-<!-- <details><summary class="box">Code</summary> -->
-<!-- <p> -->
+<!-- <!-- nrow(res_up) --> -->
+<!-- <!-- nrow(res_down) --> -->
+<!-- <!-- # 422 genes DE with padj 0.05 & abs(logFC) > 1.5 (103 upregulated, 319 downregulated) --> -->
 
-<!-- ``` {r} -->
-<!-- png(paste0(output_path, "Lmx1a_E1_hm.png"), height = 29, width = 21, family = 'Arial', units = "cm", res = 400) -->
-<!-- pheatmap(assay(rld)[rownames(res_sub),], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=FALSE, -->
-<!--          show_colnames = F, cluster_cols=T, annotation_col=as.data.frame(colData(deseq)["Group"]), -->
-<!--          annotation_colors = plot_colours, scale = "row", treeheight_row = 0, treeheight_col = 25, -->
-<!--          main = "Lmx1a_E1 vs Sox3U3 differentially expressed genes (log2FC > 1.5 and padj (FDR) < 0.05)", border_color = NA, cellheight = 1.6, cellwidth = 55) -->
-<!-- graphics.off() -->
 
-<!-- ``` -->
+<!-- <!-- # Write DE data as a csv --> -->
+<!-- <!-- res_de <- rbind(res_up, res_down) %>% arrange(-log2FoldChange) --> -->
 
-<!-- </details> -->
+<!-- <!-- cat("This table shows the differential expression results for genes with absolute log2FC > 1.5 and adjusted p-value < 0.05 when comparing Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) --> -->
+<!-- <!-- Reads are aligned to Galgal6 \n --> -->
+<!-- <!-- Statistics: --> -->
+<!-- <!-- Normalised count: read counts adjusted for library size --> -->
+<!-- <!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples --> -->
+<!-- <!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", --> -->
+<!-- <!--     file = paste0(output_path, "Lmx1a_E1_SupplementaryData_1.csv")) --> -->
+<!-- <!-- write.table(res_de, paste0(output_path, "Lmx1a_E1_SupplementaryData_1.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") --> -->
 
-<!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_hm.png"> -->
 
-<!-- </br> -->
+<!-- <!-- # non-DE genes --> -->
+<!-- <!-- res_remain <- all_dat[!rownames(all_dat) %in% rownames(res_up) & !rownames(all_dat) %in% rownames(res_down),] --> -->
+<!-- <!-- res_remain <- res_remain[order(-res_remain$log2FoldChange),] --> -->
 
-<!-- Subset differentially expressed transcription factors based on GO terms ('GO:0003700', 'GO:0043565', 'GO:0000981'). -->
+<!-- <!-- # Make a single dataframe with ordered rows --> -->
+<!-- <!-- all_dat <- rbind(res_up, res_down, res_remain) --> -->
 
-<!-- ``` {r} -->
-<!-- # Get biomart GO annotations for TFs -->
-<!-- ensembl = useMart("ensembl",dataset="ggallus_gene_ensembl") -->
-<!-- TF_subset <- getBM(attributes=c("ensembl_gene_id", "go_id", "name_1006", "namespace_1003"), -->
-<!--                    filters = 'ensembl_gene_id', -->
-<!--                    values = rownames(res_sub), -->
-<!--                    mart = ensembl) -->
+<!-- <!-- # Write all data as a csv --> -->
+<!-- <!-- cat("This table shows the differential expression results for all genes when comparing Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) --> -->
+<!-- <!-- Reads are aligned to Galgal6 \n --> -->
+<!-- <!-- Statistics: --> -->
+<!-- <!-- Normalised count: read counts adjusted for library size --> -->
+<!-- <!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples --> -->
+<!-- <!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", --> -->
+<!-- <!--     file = paste0(output_path, "Lmx1a_E1_process_output_1.csv")) --> -->
+<!-- <!-- write.table(all_dat, paste0(output_path, "Lmx1a_E1_process_output_1.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") --> -->
+<!-- <!-- ``` --> -->
 
-<!-- # subset genes based on transcription factor GO terms -->
-<!-- TF_subset <- TF_subset$ensembl_gene_id[TF_subset$go_id %in% c('GO:0003700', 'GO:0043565', 'GO:0000981')] -->
+<!-- <!-- </details> --> -->
 
-<!-- res_sub_TF <- res_sub[rownames(res_sub) %in% TF_subset,] -->
-<!-- ``` -->
+<!-- <!-- </br> --> -->
 
-<!-- </br> -->
+<!-- <!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_SupplementaryData_1.csv" download>Download differential expression results (absolute log2FC > 1.5 and adjusted p-value < 0.05) - SuppData1</a> --> -->
 
-<!-- Generate csv for raw counts, normalised counts, and differential expression output for transcription factors. -->
+<!-- <!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_process_output_1.csv" download>Download differential expression results for all genes.</a> --> -->
 
-<!-- <details><summary class="box">Code</summary> -->
-<!-- <p> -->
+<!-- <!-- </br> --> -->
 
-<!-- ``` {r} -->
-<!-- # subset TFs from all_dat -->
-<!-- all_dat_TF <- all_dat[all_dat$gene_id %in% rownames(res_sub_TF),] -->
+<!-- <!-- </br> --> -->
 
-<!-- cat("This table shows differentially expressed (absolute FC > 1.5 and padj (FDR) < 0.05) transcription factors between Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) -->
-<!-- Reads are aligned to Galgal6 \n -->
-<!-- Statistics: -->
-<!-- Normalised count: read counts adjusted for library size -->
-<!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples -->
-<!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", -->
-<!--     file = paste0(output_path, "Lmx1a_E1_process_output_2.csv")) -->
-<!-- write.table(all_dat_TF, paste0(output_path, "Lmx1a_E1_process_output_2.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") -->
-<!-- ``` -->
+<!-- <!-- Plot sample-sample distances, PCA plot and correlogram to show relationship between samples. --> -->
 
-<!-- </details> -->
+<!-- <!-- <details><summary class="box">Code</summary> --> -->
+<!-- <!-- <p> --> -->
 
-<!-- </br> -->
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- # To prevent the highest expressed genes from dominating when clustering we need to rlog (regularised log) transform the data --> -->
+<!-- <!-- rld <- rlog(deseq, blind=FALSE) --> -->
 
-<!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_process_output_2.csv" download>Download TF differential expression results (absolute log2FC > 1.5 and adjusted p-value < 0.05).</a> -->
+<!-- <!-- # Plot sample correlogram --> -->
+<!-- <!-- png(paste0(output_path, "SampleCorrelogram.png"), height = 17, width = 17, family = 'Arial', units = "cm", res = 400) --> -->
+<!-- <!-- corrgram::corrgram(as.data.frame(assay(rld)), order=TRUE, lower.panel=corrgram::panel.cor, --> -->
+<!-- <!--                    upper.panel=corrgram::panel.pts, text.panel=corrgram::panel.txt, --> -->
+<!-- <!--                    main="Correlogram of rlog sample expression", cor.method = 'pearson') --> -->
+<!-- <!-- graphics.off() --> -->
 
-<!-- </br> -->
+<!-- <!-- # Plot sample distance heatmap --> -->
+<!-- <!-- sample_dists <- dist(t(assay(rld))) --> -->
 
-<!-- Plot heatmap for differentially expressed transcription factors. -->
+<!-- <!-- sampleDistMatrix <- as.matrix(sample_dists) --> -->
+<!-- <!-- rownames(sampleDistMatrix) <- paste(colnames(rld)) --> -->
+<!-- <!-- colnames(sampleDistMatrix) <- paste(colnames(rld)) --> -->
+<!-- <!-- colours = colorRampPalette(rev(brewer.pal(9, "Blues")))(255) --> -->
 
-<!-- <details><summary class="box">Code</summary> -->
-<!-- <p> -->
+<!-- <!-- png(paste0(output_path, "SampleDist.png"), height = 12, width = 15, family = 'Arial', units = "cm", res = 400) --> -->
+<!-- <!-- pheatmap(sampleDistMatrix, color = colours) --> -->
+<!-- <!-- graphics.off() --> -->
 
-<!-- ``` {r} -->
-<!-- rld.plot <- assay(rld) -->
-<!-- rownames(rld.plot) <- gene_annotations$gene_name[match(rownames(rld.plot), gene_annotations$gene_id)] -->
+<!-- <!-- # Plot sample PCA --> -->
+<!-- <!-- png(paste0(output_path, "SamplePCA.png"), height = 12, width = 12, family = 'Arial', units = "cm", res = 400) --> -->
+<!-- <!-- plotPCA(rld, intgroup = "Group") + --> -->
+<!-- <!--   scale_color_manual(values=plot_colours$Group) + --> -->
+<!-- <!--   theme(aspect.ratio=1, --> -->
+<!-- <!--         panel.background = element_rect(fill = "white", colour = "black")) --> -->
+<!-- <!-- graphics.off() --> -->
+<!-- <!-- ``` --> -->
 
-<!-- # plot DE TFs -->
-<!-- png(paste0(output_path, "Lmx1a_E1_TFs_hm.png"), height = 17, width = 25, family = 'Arial', units = "cm", res = 400) -->
-<!-- pheatmap(rld.plot[res_sub_TF$gene_name,], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=T, -->
-<!--          show_colnames = F, cluster_cols=T, treeheight_row = 30, treeheight_col = 30, -->
-<!--          annotation_col=as.data.frame(col_data["Group"]), annotation_colors = plot_colours, -->
-<!--          scale = "row", main = "Lmx1a_E1 vs Sox3U3 differentially expressed TFs (log2FC > 1.5 and padj (FDR) < 0.05)", border_color = NA, cellheight = 10, cellwidth = 50) -->
-<!-- graphics.off() -->
-<!-- ``` -->
+<!-- <!-- </br> --> -->
 
-<!-- </details> -->
+<!-- <!-- </details> --> -->
 
-<!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_TFs_hm.png"> -->
+<!-- <!-- </br> --> -->
 
-<!-- <!-- The Modal --> -->
-<!-- <div id="myModal" class="modal"> -->
+<!-- <!-- <div class="tab"> --> -->
+<!-- <!--   <button class="tablinks" style="display: block;" onclick="openTab(event, 'Sample Correlogram')">Sample Correlogram</button> --> -->
+<!-- <!--   <button class="tablinks" onclick="openTab(event, 'Sample-Sample Distance')">Sample-Sample Distance</button> --> -->
+<!-- <!--   <button class="tablinks" onclick="openTab(event, 'Sample PCA')">Sample PCA</button> --> -->
+<!-- <!-- </div> --> -->
 
-<!--   <!-- The Close Button --> -->
+<!-- <!-- </br> --> -->
 
-<!-- <span class="close">&times;</span> -->
+<!-- <!-- <div id="Sample Correlogram" class="tabcontent"> --> -->
+<!-- <!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SampleCorrelogram.png"> --> -->
+<!-- <!-- </div> --> -->
 
-<!--   <!-- Modal Content (The Image) --> -->
-<!--   <img class="modal-content" id="img01"> -->
+<!-- <!-- <div id="Sample-Sample Distance" class="tabcontent"> --> -->
+<!-- <!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SampleDist.png"> --> -->
+<!-- <!-- </div> --> -->
 
-<!--   <!-- Modal Caption (Image Text) --> -->
-<!--   <div id="caption"></div> -->
-<!-- </div> -->
+<!-- <!-- <div id="Sample PCA" class="tabcontent"> --> -->
+<!-- <!--   <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/SamplePCA.png"> --> -->
+<!-- <!-- </div> --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- Subset differentially expressed genes (adjusted p-value < 0.05, absolute log2FC > 1.5). --> -->
+
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- res_sub <- res[which(res$padj < 0.05 & abs(res$log2FoldChange) > 1.5), ] --> -->
+<!-- <!-- res_sub <- res_sub[order(-res_sub$log2FoldChange),] --> -->
+<!-- <!-- ``` --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- Plot heatmap of differentially expressed genes. --> -->
+
+<!-- <!-- <details><summary class="box">Code</summary> --> -->
+<!-- <!-- <p> --> -->
+
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- png(paste0(output_path, "Lmx1a_E1_hm.png"), height = 29, width = 21, family = 'Arial', units = "cm", res = 400) --> -->
+<!-- <!-- pheatmap(assay(rld)[rownames(res_sub),], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=FALSE, --> -->
+<!-- <!--          show_colnames = F, cluster_cols=T, annotation_col=as.data.frame(colData(deseq)["Group"]), --> -->
+<!-- <!--          annotation_colors = plot_colours, scale = "row", treeheight_row = 0, treeheight_col = 25, --> -->
+<!-- <!--          main = "Lmx1a_E1 vs Sox3U3 differentially expressed genes (log2FC > 1.5 and padj (FDR) < 0.05)", border_color = NA, cellheight = 1.6, cellwidth = 55) --> -->
+<!-- <!-- graphics.off() --> -->
+
+<!-- <!-- ``` --> -->
+
+<!-- <!-- </details> --> -->
+
+<!-- <!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_hm.png"> --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- Subset differentially expressed transcription factors based on GO terms ('GO:0003700', 'GO:0043565', 'GO:0000981'). --> -->
+
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- # Get biomart GO annotations for TFs --> -->
+<!-- <!-- ensembl = useMart("ensembl",dataset="ggallus_gene_ensembl") --> -->
+<!-- <!-- TF_subset <- getBM(attributes=c("ensembl_gene_id", "go_id", "name_1006", "namespace_1003"), --> -->
+<!-- <!--                    filters = 'ensembl_gene_id', --> -->
+<!-- <!--                    values = rownames(res_sub), --> -->
+<!-- <!--                    mart = ensembl) --> -->
+
+<!-- <!-- # subset genes based on transcription factor GO terms --> -->
+<!-- <!-- TF_subset <- TF_subset$ensembl_gene_id[TF_subset$go_id %in% c('GO:0003700', 'GO:0043565', 'GO:0000981')] --> -->
+
+<!-- <!-- res_sub_TF <- res_sub[rownames(res_sub) %in% TF_subset,] --> -->
+<!-- <!-- ``` --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- Generate csv for raw counts, normalised counts, and differential expression output for transcription factors. --> -->
+
+<!-- <!-- <details><summary class="box">Code</summary> --> -->
+<!-- <!-- <p> --> -->
+
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- # subset TFs from all_dat --> -->
+<!-- <!-- all_dat_TF <- all_dat[all_dat$gene_id %in% rownames(res_sub_TF),] --> -->
+
+<!-- <!-- cat("This table shows differentially expressed (absolute FC > 1.5 and padj (FDR) < 0.05) transcription factors between Lmx1a_E1 and Sox3U3 samples (Lmx1a_E1 - Sox3U3) --> -->
+<!-- <!-- Reads are aligned to Galgal6 \n --> -->
+<!-- <!-- Statistics: --> -->
+<!-- <!-- Normalised count: read counts adjusted for library size --> -->
+<!-- <!-- pvalue: unadjusted pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples --> -->
+<!-- <!-- padj: pvalue for differential expression test between Lmx1a_E1 and Sox3U3 samples - adjusted for multiple testing (Benjamini and Hochberg) \n \n", --> -->
+<!-- <!--     file = paste0(output_path, "Lmx1a_E1_process_output_2.csv")) --> -->
+<!-- <!-- write.table(all_dat_TF, paste0(output_path, "Lmx1a_E1_process_output_2.csv"), append=TRUE, row.names = F, na = 'NA', sep=",") --> -->
+<!-- <!-- ``` --> -->
+
+<!-- <!-- </details> --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- <a href="{{ site.baseurl }}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_process_output_2.csv" download>Download TF differential expression results (absolute log2FC > 1.5 and adjusted p-value < 0.05).</a> --> -->
+
+<!-- <!-- </br> --> -->
+
+<!-- <!-- Plot heatmap for differentially expressed transcription factors. --> -->
+
+<!-- <!-- <details><summary class="box">Code</summary> --> -->
+<!-- <!-- <p> --> -->
+
+<!-- <!-- ``` {r} --> -->
+<!-- <!-- rld.plot <- assay(rld) --> -->
+<!-- <!-- rownames(rld.plot) <- gene_annotations$gene_name[match(rownames(rld.plot), gene_annotations$gene_id)] --> -->
+
+<!-- <!-- # plot DE TFs --> -->
+<!-- <!-- png(paste0(output_path, "Lmx1a_E1_TFs_hm.png"), height = 17, width = 25, family = 'Arial', units = "cm", res = 400) --> -->
+<!-- <!-- pheatmap(rld.plot[res_sub_TF$gene_name,], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=T, --> -->
+<!-- <!--          show_colnames = F, cluster_cols=T, treeheight_row = 30, treeheight_col = 30, --> -->
+<!-- <!--          annotation_col=as.data.frame(col_data["Group"]), annotation_colors = plot_colours, --> -->
+<!-- <!--          scale = "row", main = "Lmx1a_E1 vs Sox3U3 differentially expressed TFs (log2FC > 1.5 and padj (FDR) < 0.05)", border_color = NA, cellheight = 10, cellwidth = 50) --> -->
+<!-- <!-- graphics.off() --> -->
+<!-- <!-- ``` --> -->
+
+<!-- <!-- </details> --> -->
+
+<!-- <!-- <img class="myImages" id="myImg" src="{{site.baseurl}}/assets/output/NF-downstream_analysis/lmx1a_dea/output/Lmx1a_E1_TFs_hm.png"> --> -->
+
+<!-- <!-- <!-- The Modal --> --> -->
+<!-- <!-- <div id="myModal" class="modal"> --> -->
+
+<!-- <!--   <!-- The Close Button --> --> -->
+
+<!-- <!-- <span class="close">&times;</span> --> -->
+
+<!-- <!--   <!-- Modal Content (The Image) --> --> -->
+<!-- <!--   <img class="modal-content" id="img01"> --> -->
+
+<!-- <!--   <!-- Modal Caption (Image Text) --> --> -->
+<!-- <!--   <div id="caption"></div> --> -->
+<!-- <!-- </div> --> -->
