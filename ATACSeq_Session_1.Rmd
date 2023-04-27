@@ -1,37 +1,33 @@
 ---
 title: "ATACseq_Session_1"
+output: html_document
 date: "2023-01-23"
-output:
-  html_document:
-    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(fig.width=8, fig.height=8) 
 ```
 
 # Input data
 
 The data we will be using is from this paper:
-
 M Ryan Corces et al. An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. Nat Methods. 2017 Oct;14(10):959-962. doi: 10.1038/nmeth.4396.
 
 In this paper Corces et al present a new ATAC-seq protocol which reduces background and enables interrogation of frozen tissues. The human cell line GM12878 was cultured and ATACseq data was collected using 3 different protocols: Standard, Omni and Fast. For each protocol two replicates were collected. The ATAC-seq was performed using paired-end sequencing. 
 
-Data was aligned and annotated for the hg19 reference genome using the [NF-core ATACseq pipeline](https://nf-co.re/atacseq). 
+Data was aligned and annotated for the hg19 reference genome using the NF-core ATACseq pipeline - https://nf-co.re/atacseq. 
 
 Sample information:
+SRA ID	    SAMPLE NAME
 
-```{r make_table, include=FALSE}
-data <- data.frame(SRA_ID = c('SRR5427884', 'SRR5427885', 'SRR5427886', 'SRR5427887', 'SRR5427888', 'SRR5427889'), 
-                   Method = c('Standard', 'Standard', 'Omni', 'Omni', 'Fast', 'Fast'),
-                   Replicate = c(1, 2, 1, 2, 1, 2))
-```
+SRR5427884	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
+SRR5427885	ATAC-seq of in vitro culture GM12878 using the Standard ATAC method
 
-```{r print_table}
-data
-```
+SRR5427886	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+SRR5427887	ATAC-seq of in vitro culture GM12878 using the Omni-ATAC method
+
+SRR5427888	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
+SRR5427889	ATAC-seq of in vitro culture GM12878 using the Fast-ATAC method
 
 # Installing Packages
 
@@ -45,7 +41,7 @@ Required packages:
 Required helper packages:
 - 'BiocManager' - a package that helps us install the above packages
 
-```{r installation, echo = T, results = 'hide', message=FALSE, warning=FALSE}
+```{r installation, echo = FALSE}
 
 # Set up params for installation
 r <- getOption("repos")
@@ -72,34 +68,40 @@ BiocManager::install("soGGi")
 
 First need to import our BAM files and BAM index files. BAM files contain information on aligned sequences. 
 
-As these data files are very big we are just looking at a subset of the original data. For now lets read in 2 files: one replicate of ATAC-seq data made using the 'OMNI' method and one replicate of data made using the 'STANDARD' method. 
+As these data files are very big we are just looking at a subset of the original data, only reads that map to the Y chromosome.
 
 First we need to read in this data, to do this we need to set the paths which tell us where this data is located.  
 
 ```{r set_paths}
 
 # setting the paths for the OMNI data
-OMNI_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
-OMNI_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
+#OMNI_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
+#OMNI_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
+
+# setting the paths for the OMNI data
+OMNI_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
+OMNI_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
 
 # setting the paths for the STD data
-STD_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
-STD_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+#STD_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
+#STD_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+
+# setting the paths for the STD data
+STD_bam_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
+STD_bai_path <- "./data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+
 
 ```
 
 
-### Check BAMs
+## Check BAMs
 
 We can use functions from the package 'ATACseqQC' to inspect our BAM files and generate some ATAC-specific QC plots. For more information on how to use this package see https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html. 
 
 First, lets check our BAMs using the function `bamQC`:
 
-```{r load_lib1, results = 'hide', message=FALSE, warning=FALSE}
-library(ATACseqQC)
-```
-
 ```{r check_BAMs_OMNI}
+library(ATACseqQC)
 
 bamQC(OMNI_bam_path, index = OMNI_bai_path, outPath = NULL)
 
@@ -111,23 +113,21 @@ bamQC(STD_bam_path, index = STD_bai_path, outPath = NULL)
 
 ```
 
-
-##### Q: The BAM files have been subsetted so we can work with them locally, from the above output can you tell how they have been cut down? 
-
+### Q: The BAM files have been subsetted so we can work with them locally, from the above output can you tell how they have been cut down? 
 A: We can see that, for both BAM files, there are only reads mapped to chromosome Y. This is because we subset the BAM files to only include this chromosome. 
 
 
 # Shifting Reads
 
-A 9 base pair (bp) DNA insertion is introduced when the transposase-induced nick is repaired during the ATAC process. For some types of analysis we may want to have single base pair resolution. This means we will need to correct for this insertion by shifting our read coordinates. Reads aligned to the +ve strand should be offset by +4bp and to the -ve strand should be shifted by -5bp. For our purposes this shifting will not be necessary, but if needed this can done by using the ATACseqQC function `shiftGAlignmentsList` 
+A 9 base pair (bp) DNA insertion is introduced when the transposase-induced nick is repaired during the ATAC process. For some types of analysis we may want to have single base pair resolution. This means we will need to correct for this insertion by shifting our read coordinates. Reads aligned to the +ve strand should be offset by +4bp and to the -ve strand should be shifted by -5bp. For our purposes this shifting will not be neccessary, but if you need this step you it can be done by using the ATACseqQC function `shiftGAlignmentsList` 
 
 
 # Quality Control
 
-We have already had a look at the quality of our ATAC-seq data in the multi_qc report. After reads have been preprocessed and aligned, there are some additional ATAC-specific quality control visualisations we can generate. Check out this [review](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-1929-3) for a clear explanation of ATAC-specific quality control steps. 
+We have already had a look at the quality of our ATAC-seq data in the multi_qc report. After reads have been preprocessed and aligned, there are some additional ATAC-specific quality control visualisations we can generate. 
 
 
-### Fragment Size Distribution
+## Fragment Size Distribution
 
 Good-quality ATACseq data should display a characteristic pattern when you plot the distribution of the fragment sizes. This is because DNA is packaged into nucleosomes, which are about 147bp in length and cannot be accessed by the Tn5 enzyme. This means that most Tn5 fragments  come from nucleosome-free regions (NFR), and therefore be <100bp long. Fragments can also be created if Tn5 enzymes insert just before and after 1, 2 or 3 nucleosomes. This results in an enrichment of fragments that are ~200, ~400 and ~600bp long. 
 
@@ -138,8 +138,6 @@ First we can look at this distribution for the OMNI sample:
 fragSize_OMNI <- fragSizeDist(OMNI_bam_path, "OMNI", index = OMNI_bai_path)
 
 ```
-
-
 Then in our STD sample:
 
 ```{r frag_size_STD}
@@ -148,14 +146,12 @@ fragSize_STD <- fragSizeDist(STD_bam_path, "STD", index = STD_bai_path)
 
 ```
 
-As we are only looking at a subset of the data, these plots are not perfect, but we can see a promising hint of the typical nucleosome banding pattern seen in good quality ATAC-seq data. 
+## Loading annotations
+
+Annotations are needed so we can see where the genes are in the genome. They can help us identify if our fragments map to gene bodies, transcription start sites, introns or intergenic regions. 
 
 
-### Loading annotations
-
-Annotations are needed so we can see where the genes are in the genome. They can help us identify if our fragments map to gene bodies, transcription start sites, introns or intergenic regions. As we are working with human data, we can download the annotations from the online database [UCSC](https://genome.ucsc.edu/).
-
-```{r load_TSS_annotations, results = 'hide', message=FALSE, warning=FALSE}
+```{r load_TSS_annotations}
 
 BiocManager::install("TxDb.Hsapiens.UCSC.hg19.knownGene")
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
@@ -166,14 +162,10 @@ tssLocations <- resize(genesLocations,fix="start",width = 1)
 print(tssLocations)
 
 ```
-
-
-###### Q: What kind of data format is our tssLocations object in?
-
+### Q: What kind of data format is our tssLocations object in?
 A: The tssLocations object is a GRanges object which includes information about genomic ranges i.e. the name of the range, the chromosome the range is on and the start and end coordinates.
 
-
-###### Challenge: As our BAM files only include reads from the Y chromosome, we can cut down our annotation file to also only include genes from this chromosome. There are a few ways you can do this, one example is shown here:
+### Challenge: As our BAM files only include reads from the Y chromosome, we can cut down our annotation file to also only include genes from this chromosome. There are a few ways you can do this, one example is shown here:
 
 ```{r subset_annotations}
 
@@ -183,30 +175,19 @@ print(tssLocations)
 
 ```
 
-### Transcription Start Site Enrichment
+## Transcription Start Site Enrichment
 
-Another sign of good-quality ATACseq data is that most reads should map to transcription start sites (TSSs). This is because TSSs are transcriptionally active and therefore 'open'. We can use the function `regionPlot` from the package 'soGGi' to examine this. 
+Another sign of good-quality ATACseq data is that most reads should map to transcription start sites (TSSs). This is because TSSs are transcriptionally active and therefore 'open'. For more information: https://rockefelleruniversity.github.io/RU_ATACseq/exercises/answers/ATACseq_part2_answers.html. We can use the function `regionPlot` from the package 'soGGi' to examine this. 
 
-```{r lib_load2, results = 'hide', message=FALSE, warning=FALSE}
+```{r TSS_enrichment}
 library(soGGi)
 library(ggplot2)
-```
-
-``` {r TSS_enrichment_OMNI}
 
 OMNI_plot <- regionPlot(bamFile = OMNI_bam_path, testRanges = tssLocations, paired = TRUE)
-
-plotRegion(OMNI_plot) + theme_bw()
-
-```
-
-``` {r TSS_enrichment_STD}
-
 STD_plot <- regionPlot(bamFile = STD_bam_path, testRanges = tssLocations, paired = TRUE)
 
 plotRegion(OMNI_plot) + theme_bw()
+plotRegion(STD_plot) + theme_bw()
 
 ```
-
-
 At this point if we see that one of our samples is very different from the others and has a very poor fragment size histogram or TSS enrichment we may determine it is poor quality and remove it from downstream analysis. In this case our OMNI and STD outputs look similar and good quality so we would keep both of them. 
