@@ -6,12 +6,73 @@ output:
     df_print: paged
 ---
 
+
+</br>
+
+### **Clone GitHub repository**
+</br>
+
+You can download this repository and run these sessions on your local machine by running the following commands in a terminal window:
+```{r, engine='bash', eval=FALSE}
+# Move to path where you would like the repository to be stored
+cd <PATH>
+# Clone github repository into path
+git clone https://github.com/alexthiery/NGS_training.git
+```
+
+Once you have cloned the repository: open Rstudio -> select 'File' -> 'Open Project in New Session' -> open the cloned repository.
+This will open up an Rstudio session with all the scripts and data required to run this analysis.
+
+---
+</br>
+
+### **ATAC Session 1**
+</br>
+
+In this session we will begin analysing bulk ATACseq analysis in R. We will import mapped reads in the BAM format and create some QC plots to check our data. 
+
+</br>
+
+#### **Setup working environment**
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(fig.width=8, fig.height=8) 
 ```
 
-# Input data
+In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
+
+Required packages:
+- 'ATACseqQC' - used to generate quality control plots
+- 'ggplot2' - used to generate plots
+- 'soGGi' - used to generate quality control plots
+
+Required helper packages:
+- 'BiocManager' - a package that helps us install the above packages
+
+```{r, message=FALSE, warning=FALSE}
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager", repos = "http://cran.us.r-project.org")
+
+BiocManager::install(version = "3.16")
+BiocManager::install("ATACseqQC")
+BiocManager::install("soGGi")
+
+install.packages("ggplot2")
+```
+
+Load packages
+
+```{r, message=FALSE, warning=FALSE}
+library(ATACseqQC)
+library(soGGi)
+library(ggplot2)
+```
+
+</br>
+
+#### **Input data**
 
 The data we will be using is from this paper:
 
@@ -33,42 +94,7 @@ data <- data.frame(SRA_ID = c('SRR5427884', 'SRR5427885', 'SRR5427886', 'SRR5427
 data
 ```
 
-# Installing Packages
-
-In order to run our analysis in R, we first need to install some R packages. These packages include functions that we will use to manipulate and visualise our ATAC-seq data.
-
-Required packages:
-- 'ATACseqQC' - used to generate quality control plots
-- 'ggplot2' - used to generate plots
-- 'soGGi' - used to generate quality control plots
-
-Required helper packages:
-- 'BiocManager' - a package that helps us install the above packages
-
-```{r installation, echo = T, results = 'hide', message=FALSE, warning=FALSE}
-
-# Set up params for installation
-r <- getOption("repos")
-r["CRAN"] <- "http://cran.cnr.berkeley.edu/"
-options(repos = r)
-
-# Install BiocManager
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager", repos = "http://cran.us.r-project.org")
-BiocManager::install(version = "3.16")
-
-## Install ATACseqQC
-BiocManager::install("ATACseqQC")
-
-# Install ggplot2
-install.packages("ggplot2")
-
-# Install soGGi
-BiocManager::install("soGGi")
-
-```
-
-# Importing aligned read data
+#### **Importing aligned reads**
 
 First need to import our BAM files and BAM index files. BAM files contain information on aligned sequences. 
 
@@ -117,12 +143,12 @@ bamQC(STD_bam_path, index = STD_bai_path, outPath = NULL)
 A: We can see that, for both BAM files, there are only reads mapped to chromosome Y. This is because we subset the BAM files to only include this chromosome. 
 
 
-# Shifting Reads
+#### **Shifting reads**
 
 A 9 base pair (bp) DNA insertion is introduced when the transposase-induced nick is repaired during the ATAC process. For some types of analysis we may want to have single base pair resolution. This means we will need to correct for this insertion by shifting our read coordinates. Reads aligned to the +ve strand should be offset by +4bp and to the -ve strand should be shifted by -5bp. For our purposes this shifting will not be necessary, but if needed this can done by using the ATACseqQC function `shiftGAlignmentsList` 
 
 
-# Quality Control
+#### **Quality Control**
 
 We have already had a look at the quality of our ATAC-seq data in the multi_qc report. After reads have been preprocessed and aligned, there are some additional ATAC-specific quality control visualisations we can generate. Check out this [review](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-1929-3) for a clear explanation of ATAC-specific quality control steps. 
 
@@ -186,11 +212,6 @@ print(tssLocations)
 ### Transcription Start Site Enrichment
 
 Another sign of good-quality ATACseq data is that most reads should map to transcription start sites (TSSs). This is because TSSs are transcriptionally active and therefore 'open'. We can use the function `regionPlot` from the package 'soGGi' to examine this. 
-
-```{r lib_load2, results = 'hide', message=FALSE, warning=FALSE}
-library(soGGi)
-library(ggplot2)
-```
 
 ``` {r TSS_enrichment_OMNI}
 
