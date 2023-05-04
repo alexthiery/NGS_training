@@ -1,5 +1,5 @@
 ---
-title: "ATACSeq_Session_3"
+title: "ATACSeq_Session_2"
 date: "2023-03-09"
 output:
   html_document:
@@ -8,10 +8,12 @@ output:
 
 </br>
 
-### **ATAC Session 3**
+### **ATAC Session 2**
 </br>
 
-We will visualise a part of the genome of interest using a genome track. 
+We will conduct bulk ATACseq analysis in R using [DESeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential accessibility testing.
+
+This tutorial is focussed on the data objects used during DESeq2 differential expression analysis.
 
 </br>
 
@@ -215,7 +217,7 @@ The sample metadata needs to be provided as a dataframe containing the sample na
 ```{r col_data_setup}
 
 # set up metatdata table
-col_data <- data.frame(colnames(counts))
+col_data <- data.frame(colnames(counts)[2:7])
 colnames(col_data) <- "sample_name"
 col_data <- col_data %>% 
   mutate(condition = sapply(strsplit(as.character(col_data$sample_name), "_"), `[`, 2)) %>%
@@ -295,19 +297,7 @@ summary(res, alpha = 0.05)
 ### then some sample QC plots eg sample-sample correlation and PCA
 
 
-``` {r}
-print(head(annot_peaks_bed))
 
-rownames(res)[1]
-
-annot_peaks_bed_temp <- annot_peaks_bed[, -1]
-rownames(annot_peaks_bed_temp) <- annot_peaks_bed[, 1]
-head(annot_peaks_bed_temp)
-
-annot_peaks_bed_temp[rownames(res)[1], ]
-
-
-```
 
 
 
@@ -366,11 +356,6 @@ res_1 <- results(dds, contrast=c("condition","FAST","OMNI"))
 
 ```
 You can reorder the results based on the p values
-
-```{r deseq2_res_reorder}
-res <- res[order(res$padj),]
-head(res)
-```
 
 ```{r deseq2_res_reorder}
 res <- res[order(res$padj),]

@@ -121,6 +121,9 @@ We can use functions from the package 'ATACseqQC' to inspect our BAM files and g
 
 First, lets check our BAMs using the function `bamQC`:
 
+```{r load_lib1, results = 'hide', message=FALSE, warning=FALSE}
+library(ATACseqQC)
+```
 
 ```{r check_BAMs_OMNI}
 
@@ -193,21 +196,18 @@ print(tssLocations)
 
 ###### Q: What kind of data format is our tssLocations object in?
 
-<details>
-  <summary>Click for Answer</summary>
-    A: The tssLocations object is a GRanges object which includes information about genomic ranges i.e. the name of the range, the chromosome the range is on and the start and end coordinates.
-</details> 
+A: The tssLocations object is a GRanges object which includes information about genomic ranges i.e. the name of the range, the chromosome the range is on and the start and end coordinates.
 
 
-###### Challenge: As our BAM files only include reads from the Y chromosome, we need to cut down our annotation file to also only include genes from this chromosome. Have a go at doing this yourself. 
+###### Challenge: As our BAM files only include reads from the Y chromosome, we can cut down our annotation file to also only include genes from this chromosome. There are a few ways you can do this, one example is shown here:
 
-<details>
-  <summary>Click for Answer</summary>
 ```{r subset_annotations}
+
 tssLocations <- tssLocations[seqnames(tssLocations) %in% "chrY"]
+
 print(tssLocations)
+
 ```
-</details> 
 
 ### Transcription Start Site Enrichment
 
