@@ -6,23 +6,6 @@ output:
     df_print: paged
 ---
 
-
-</br>
-
-### **Clone GitHub repository**
-</br>
-
-You can download this repository and run these sessions on your local machine by running the following commands in a terminal window:
-```{r, engine='bash', eval=FALSE}
-# Move to path where you would like the repository to be stored
-cd <PATH>
-# Clone github repository into path
-git clone https://github.com/alexthiery/NGS_training.git
-```
-
-Once you have cloned the repository: open Rstudio -> select 'File' -> 'Open Project in New Session' -> open the cloned repository.
-This will open up an Rstudio session with all the scripts and data required to run this analysis.
-
 ---
 </br>
 
@@ -103,18 +86,20 @@ First we need to import our BAM files and BAM index files. A BAM file contains i
 As these data files are very big we are just going to look at a subset of the original data. Let's read in 2 files: one replicate of ATAC-seq data made using the 'OMNI' method and one replicate of data made using the 'STANDARD' method. 
 
 First we need to read in this data, to do this we need to set the paths which tell us where this data is located. 
-
-!!! May need to change this depending on if we want to upload directly to IS
+You will need to customise the following paths to reflect where you have save the data on your computer:
 
 ```{r set_paths}
 
+# set working directory
+setwd("~/dev/NGS_innovation_scholars")
+
 # setting the paths for the OMNI data
-OMNI_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
-OMNI_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
+OMNI_bam_path <- "./raw_data/BAM_files/OMNI.bam"
+OMNI_bai_path <- "./raw_data/BAM_files/OMNI.bam.bai"
 
 # setting the paths for the STD data
-STD_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
-STD_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+STD_bam_path <- "./raw_data/BAM_files/STD.bam"
+STD_bai_path <- "./raw_data/BAM_files/STD.bam.bai"
 
 ```
 
