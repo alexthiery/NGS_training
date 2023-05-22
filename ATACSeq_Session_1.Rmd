@@ -6,23 +6,6 @@ output:
     df_print: paged
 ---
 
-
-</br>
-
-### **Clone GitHub repository**
-</br>
-
-You can download this repository and run these sessions on your local machine by running the following commands in a terminal window:
-```{r, engine='bash', eval=FALSE}
-# Move to path where you would like the repository to be stored
-cd <PATH>
-# Clone github repository into path
-git clone https://github.com/alexthiery/NGS_training.git
-```
-
-Once you have cloned the repository: open Rstudio -> select 'File' -> 'Open Project in New Session' -> open the cloned repository.
-This will open up an Rstudio session with all the scripts and data required to run this analysis.
-
 ---
 </br>
 
@@ -51,6 +34,8 @@ Required helper packages:
 - 'BiocManager' - a package that helps us install the above packages
 
 ```{r, message=FALSE, warning=FALSE}
+if (!require("tidyverse", quietly = TRUE))
+    install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 
 if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager", repos = "http://cran.us.r-project.org")
@@ -59,7 +44,7 @@ BiocManager::install(version = "3.16")
 BiocManager::install("ATACseqQC")
 BiocManager::install("soGGi")
 
-install.packages("ggplot2")
+install.packages('ggplot2', repos='http://cran.us.r-project.org')
 ```
 
 Load packages
@@ -76,13 +61,13 @@ library(ggplot2)
 
 The data we will be using is from this paper:
 
-M Ryan Corces et al. An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. Nat Methods. 2017 Oct;14(10):959-962. doi: 10.1038/nmeth.4396.
+[An Improved ATAC-seq Protocol Reduces Background and Enables Interrogation of Frozen Tissues. M Ryan Corces et al.](https://www.nature.com/articles/nmeth.4396)
 
-In this paper Corces et al present a new ATAC-seq protocol which reduces background and enables interrogation of frozen tissues. The human cell line GM12878 was cultured and ATACseq data was collected using 3 different protocols: Standard, Omni and Fast. For each protocol two replicates were collected. The ATAC-seq was performed using paired-end sequencing. 
+This paper presents a new ATAC-seq protocol which reduces background and enables interrogation of frozen tissues. The human cell line GM12878 was cultured and ATACseq data was collected using 3 different protocols: Standard, Omni and Fast. For each protocol two replicates were collected. The ATAC-seq was performed using paired-end sequencing. 
 
-Data was aligned and annotated for the hg19 reference genome using the [NF-core ATACseq pipeline](https://nf-co.re/atacseq). 
+The ATAC-seq reads were aligned and annotated for the hg19 reference genome using the [NF-core ATACseq pipeline](https://nf-co.re/atacseq). 
 
-Sample information:
+Here is the sample information:
 
 ```{r make_table, include=FALSE}
 data <- data.frame(SRA_ID = c('SRR5427884', 'SRR5427885', 'SRR5427886', 'SRR5427887', 'SRR5427888', 'SRR5427889'), 
@@ -96,34 +81,34 @@ data
 
 #### **Importing aligned reads**
 
-First need to import our BAM files and BAM index files. BAM files contain information on aligned sequences. 
+First we need to import our BAM files and BAM index files. A BAM file contains information on aligned sequences. A BAM index file acts like a table of contents to make it easier to navigate a corresponding BAM file. 
 
-As these data files are very big we are just looking at a subset of the original data. For now lets read in 2 files: one replicate of ATAC-seq data made using the 'OMNI' method and one replicate of data made using the 'STANDARD' method. 
+As these data files are very big we are just going to look at a subset of the original data. Let's read in 2 files: one replicate of ATAC-seq data made using the 'OMNI' method and one replicate of data made using the 'STANDARD' method. 
 
-First we need to read in this data, to do this we need to set the paths which tell us where this data is located.  
+First we need to read in this data, to do this we need to set the paths which tell us where this data is located. 
+You will need to customise the following paths to reflect where you have save the data on your computer:
 
 ```{r set_paths}
 
+# set working directory
+setwd("~/dev/NGS_innovation_scholars")
+
 # setting the paths for the OMNI data
-OMNI_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam"
-OMNI_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/OMNI_chrY.bam.bai"
+OMNI_bam_path <- "./raw_data/BAM_files/OMNI.bam"
+OMNI_bai_path <- "./raw_data/BAM_files/OMNI.bam.bai"
 
 # setting the paths for the STD data
-STD_bam_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam"
-STD_bai_path <- "https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-ATACseq_alignment/chrY_subset_bam/STD_chrY.bam.bai"
+STD_bam_path <- "./raw_data/BAM_files/STD.bam"
+STD_bai_path <- "./raw_data/BAM_files/STD.bam.bai"
 
 ```
 
 
 ### Check BAMs
 
-We can use functions from the package 'ATACseqQC' to inspect our BAM files and generate some ATAC-specific QC plots. For more information on how to use this package see https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html. 
+We can use functions from the package ['ATACseqQC'](https://haibol2016.github.io/ATACseqQCWorkshop/articles/ATACseqQC_workshop.html) to inspect our BAM files and generate some ATAC-specific QC plots.
 
 First, lets check our BAMs using the function `bamQC`:
-
-```{r load_lib1, results = 'hide', message=FALSE, warning=FALSE}
-library(ATACseqQC)
-```
 
 ```{r check_BAMs_OMNI}
 
@@ -137,10 +122,11 @@ bamQC(STD_bam_path, index = STD_bai_path, outPath = NULL)
 
 ```
 
-
-##### Q: The BAM files have been subsetted so we can work with them locally, from the above output can you tell how they have been cut down? 
-
-A: We can see that, for both BAM files, there are only reads mapped to chromosome Y. This is because we subset the BAM files to only include this chromosome. 
+##### Q: The BAM files have been subsetted to make them smaller and easier to work with, from the above output can you tell how they have been cut down? 
+<details>
+  <summary>Click for Answer</summary>
+    A: We can see that, for both BAM files, there are only reads mapped to chromosome Y. The BAM files have been subsetted to only include this chromosome. 
+</details> 
 
 
 #### **Shifting reads**
@@ -176,6 +162,13 @@ fragSize_STD <- fragSizeDist(STD_bam_path, "STD", index = STD_bai_path)
 
 As we are only looking at a subset of the data, these plots are not perfect, but we can see a promising hint of the typical nucleosome banding pattern seen in good quality ATAC-seq data. 
 
+If you take a look at the [MultiQC report](https://moodle.learninghub.kingshealthpartners.org/pluginfile.php/184577/mod_resource/content/3/multiqc_report.html#picard-insertsize) for the ATAC-seq data in the section 'Read Alignment and Quality Control' you can see that there is also a fragment distribution plot here for each of the samples. You can see on this plot that the OMNI samples have a much clearer fragment length distribution pattern than the STD samples. 
+
+##### Q: The fragment distribution plots on the MultiQC report for the STD and OMNI samples look a little different from ours, why might that be?
+<details>
+  <summary>Click for Answer</summary>
+    A: One explanation could be that we are only using the reads that map to chrosome Y to save memory, whilst the MultiQC report plot is likely to use reads from all chromosomes. 
+</details> 
 
 ### Loading annotations
 
@@ -183,31 +176,33 @@ Annotations are needed so we can see where the genes are in the genome. They can
 
 ```{r load_TSS_annotations, results = 'hide', message=FALSE, warning=FALSE}
 
+# Load the human genome TxDB object
 BiocManager::install("TxDb.Hsapiens.UCSC.hg19.knownGene")
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 
+# Extract the gene locations
 genesLocations <- genes(TxDb.Hsapiens.UCSC.hg19.knownGene)
-tssLocations <- resize(genesLocations,fix="start",width = 1)
+
+# Extract the transcription start site (TSS) locations
+tssLocations <- resize(genesLocations, fix="start", width = 1)
 
 print(tssLocations)
 
 ```
 
 
-###### Q: What kind of data format is our tssLocations object in?
+###### Challenge: As our BAM files only include reads from the Y chromosome, we need to cut down our annotation file to also only include genes from this chromosome. Have a go at doing this yourself. 
 
-A: The tssLocations object is a GRanges object which includes information about genomic ranges i.e. the name of the range, the chromosome the range is on and the start and end coordinates.
-
-
-###### Challenge: As our BAM files only include reads from the Y chromosome, we can cut down our annotation file to also only include genes from this chromosome. There are a few ways you can do this, one example is shown here:
-
+<details>
+  <summary>Click for Answer</summary>
+  
+`tssLocations` is a GRanges object, so in order to access the chromosome names from this object we can use the function `seqnames`.
+  
 ```{r subset_annotations}
-
 tssLocations <- tssLocations[seqnames(tssLocations) %in% "chrY"]
-
 print(tssLocations)
-
 ```
+</details> 
 
 ### Transcription Start Site Enrichment
 
@@ -230,4 +225,8 @@ plotRegion(OMNI_plot) + theme_bw()
 ```
 
 
-At this point if we see that one of our samples is very different from the others and has a very poor fragment size histogram or TSS enrichment we may determine it is poor quality and remove it from downstream analysis. In this case our OMNI and STD outputs look similar and good quality so we would keep both of them. 
+If you take a look at another section of the [MultiQC report](https://moodle.learninghub.kingshealthpartners.org/pluginfile.php/184577/mod_resource/content/3/multiqc_report.html#mlib_deeptools_read_distribution_profile_plot) for the ATAC-seq data, you can see that there is also a TSS enrichment plot here. This plot is slightly different from ours in that, not only are all the TSSs aligned at the '0' point on the x axis, but their corresponding gene lengths have been adjusted so all the gene bodies end at the '1000' mark on the x axis. We can see that each sample is enriched at the TSSs. 
+
+
+
+

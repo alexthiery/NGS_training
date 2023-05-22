@@ -11,9 +11,7 @@ output:
 ### **ATAC Session 2**
 </br>
 
-We will conduct bulk ATACseq analysis in R using [DESeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential accessibility testing.
-
-This tutorial is focussed on the data objects used during DESeq2 differential expression analysis.
+In this session, we will conduct bulk ATACseq analysis in R using [DESeq2](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for data normalisation and differential accessibility testing.
 
 </br>
 
@@ -67,11 +65,15 @@ library(ggplot2)
 
 #### **Data pre-processing**
 
+In the last session we worked with the aligned reads directly, however in ATAC-seq data we can often use just look at regions of the genome defined as 'peaks' instead of looking at all reads across all parts of the genome. 
+
+Peaks are regions of the genome where lots of reads have mapped, they are identified by peak calling algorithms such as [Macs2](https://hbctraining.github.io/Intro-to-ChIPseq/lessons/05_peak_calling_macs.html). The [nf-core ATAC-seq pipeline](https://nf-co.re/atacseq/2.0/output) that was used to pre-process our ATAC-seq reads also ran Macs2 to call peaks on our samples. 
+
+Peak calling can be performed on each sample individually or on all the samples and replicates together. The [MultiQC report](https://moodle.learninghub.kingshealthpartners.org/pluginfile.php/184577/mod_resource/content/3/multiqc_report.html#mlib_peak_count) includes plots from the Macs2 output showing us how many peaks were called on each sample and how these peaks are annotated. 
+
+We are going to look at a consensus peak set that was called on our 6 samples (3 conditions, 2 replicates of each).
+
 # Peak calling outputs
-
-In the last session we worked with the aligned reads directly, however in ATAC-seq data we can often use peaks instead of all reads. Peaks are regions of the genome where lots of reads have mapped, they are identified by peak calling algorithms such as [Macs2](https://hbctraining.github.io/Intro-to-ChIPseq/lessons/05_peak_calling_macs.html). 
-
-Peak calling can be performed on each sample individually or on all the samples and replicates together. We are going to look at a consensus peak set that was called on our 6 samples (3 conditions, 2 replicates of each). You can see how this consensus peak set appeared in the different samples in the consensus_peaks pdf file. 
 
 There are usually 2 outputs of peak calling: 
 1) a Peaks BED object (either not annotated (1.1) or annotated (1.2)) that describes the genomic coordinates of the peaks that have been called        
@@ -84,10 +86,10 @@ BED files define features along a genome. They include: the name of the feature 
 ```{r read_peak_bed}
 
 # path for the peaks bed file
-peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.bed"
+peaks_bed_path <- "./raw_data/Peak_files/consensus_peaks.bed"
 
 # read in file
-peaks_bed <- as.data.frame(read.table(peaks_bed_path, header = FALSE, sep="\t",stringsAsFactors=FALSE, quote=""))
+peaks_bed <- as.data.frame(read.table(peaks_bed_path, header = FALSE, sep="\t", stringsAsFactors=FALSE, quote=""))
 
 # print file
 print(head(peaks_bed))
@@ -95,12 +97,16 @@ print(head(peaks_bed))
 ```
 
 ##### Q: How many peaks do we have in total?
-
-A: There are 104,659 rows in 'peaks_bed' (each row corresponds to a peak)
-
+<details>
+  <summary>Click for Answer</summary>
+    A: There are 104,659 rows in 'peaks_bed' (each row corresponds to a peak) 
+</details> 
 
 ##### Challenge: What are the sizes of the biggest and smallest peaks in the dataframe?
 
+<details>
+  <summary>Click for Answer</summary>
+    A:
 The dataframe 'peaks_bed' includes the start coordinate and end coordinates, so the difference between the two will give you the size of the peaks. 
 There are a few ways you can calculate peak sizes and identify the biggest one, here is one way which makes use of the package 'dplyr':
 
@@ -113,16 +119,18 @@ peaks_bed %>%
 ```
 
 The resulting dataframe is ordered by peak size, the smallest size is at the top (146bp) and biggest at the bottom (167bp). Note that when you print the table on rstudio it may not show you every row to save space!
-
+</details> 
 
 ### 1.1) Annotated Peaks BED
 
-In order to give our peak coordinates biological context, we need to know where they are relative to genes and other annotated features of the genome. Annotation of the peaks BED file can be done manually by intersecting two BED files: the peaks BED file and the genome annotations BED file. This can be done using a function called [bedtools intersect](https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html). In our case, the NF-core pipeline already includes a step that annotated the peak bed file so we only have to read it in. 
+In order to give our peak coordinates biological context, we need to know where they are relative to genes and other annotated features of the genome. 
+
+Annotation of the peaks BED file can be done manually by intersecting two BED files: the peaks BED file and the genome annotations BED file. This can be done using a function called [bedtools intersect](https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html). In our case, the NF-core pipeline already includes a step that annotated the peak bed file so we only have to read it in. 
 
 
 ```{r annotate_peak_bed}
 
-annot_peaks_bed_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.annotatePeaks.txt"
+annot_peaks_bed_path <- "./raw_data/Peak_files/consensus_peaks_annotated.bed"
 
 annot_peaks_bed <- read.table(annot_peaks_bed_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
 
@@ -130,11 +138,6 @@ print(head(annot_peaks_bed))
 
 ```
 
-Now that we have these peaks and their annotations we can do some investigations eg looking at what regions of the genomes most peaks come from (gene bodies, intergenic, etc. ) 
-
-???Make some pie charts???
-
-plotAnnoPie(peak_count_matrix) from ChIPseeker package?
 
 ### 2) Peak Count Matrix
 
@@ -142,7 +145,7 @@ Now that we know what the peaks are, the next important information is to know h
 
 ```{r peak_count_matrix}
 
-peak_count_matrix_path <- "./data/NF-ATACseq_alignment/bwa/merged_library/macs2/broad_peak/consensus/consensus/consensus_peaks.mLb.clN.featureCounts.txt"
+peak_count_matrix_path <- "./raw_data/Peak_files/consensus_peaks_featureCounts.txt"
 
 peak_count_matrix <- read.table(peak_count_matrix_path, header = TRUE, sep="\t", stringsAsFactors=FALSE, quote="")
 
@@ -152,7 +155,9 @@ print(head(peak_count_matrix))
 
 ##### Activity: Can you reorder the peak_count_matrix to confirm that the smallest and largest peak sizes are what we expected?
 
-```{r reorder_matrix}
+<details>
+  <summary>Click for Answer</summary>
+    ```{r reorder_matrix}
 
 peak_count_matrix %>% 
   arrange(Length)
@@ -160,6 +165,9 @@ peak_count_matrix %>%
 ```
 
 By reordering the peak matrix we can see that the smallest peak is 146bp and largest is 167bp, which matches what we saw before. 
+</details> 
+
+
 
 </br>
 
@@ -194,16 +202,6 @@ print(head(counts))
 
 ```
 
-```{r counts_distribution}
-
-boxplot(counts$GM12878_STD_REP1)
-hist(counts$GM12878_STD_REP1, breaks = 100)
-pw = log(counts$GM12878_STD_REP1 + 1)
-boxplot(pw)
-hist(pw, breaks = 100)
-
-```
-
 
 </br>
 
@@ -217,7 +215,7 @@ The sample metadata needs to be provided as a dataframe containing the sample na
 ```{r col_data_setup}
 
 # set up metatdata table
-col_data <- data.frame(colnames(counts)[2:7])
+col_data <- data.frame(colnames(counts))
 colnames(col_data) <- "sample_name"
 col_data <- col_data %>% 
   mutate(condition = sapply(strsplit(as.character(col_data$sample_name), "_"), `[`, 2)) %>%
@@ -235,14 +233,14 @@ The design argument is required to specify the sample groupings used for subsequ
 deseq <- DESeqDataSetFromMatrix(counts, design = ~ condition, colData = col_data)
 ```
 
-Next I set the reference level of the Group column to STD. Usually this would be set to your control sample, purely to make subsequent fold change calculations relative to your control.
+Next we set the reference level of the Group column to STD. Usually this would be set to your control sample, purely to make subsequent fold change calculations relative to your control.
 ```{r}
 deseq$Group <- relevel(deseq$condition, ref = "STD")
 ```
 
 An important step in preprocessing is to remove peaks with very low accessibility. This helps to reduce the size of the dataset whilst also removing peaks for which we have not captured meaningful biological variation.
 
-Here I am filtering peaks which have fewer than 5 counts in at least 2 samples
+Here we filtering peaks which have fewer than 5 counts in at least 2 samples
 ```{r}
 deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
 ```
@@ -251,17 +249,17 @@ deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
 
 #### **Run DESeq2**
 
-The standard differential expression analysis steps are wrapped into a single function, DESeq.
+The standard differential accessibility analysis steps are wrapped into a single function, DESeq.
 
 During this step, DESeq2 will:
   1) Normalise the data usingthe medians of ratios method, which effectively corrects for differences in sequencing depth and RNA composition between samples.
   2) Calculate gene dispersion estimates
-  3) Fit generalised linear models of gene expression for each gene
+  3) Fit generalised linear models of gene accessibility for each peak
 
 ```{r}
 deseq <- DESeq(deseq)
 ```
-Results tables of specific pairwise differential expression tests can then be retrieved using the *results* function. This extracts a results table with log2 fold changes, p-values and adjusted p-values.
+Results tables of specific pairwise differential accessibility tests can then be retrieved using the *results* function. This extracts a results table with log2 fold changes, p-values and adjusted p-values.
 
 ``` {r}
 res <- results(deseq)
@@ -297,7 +295,19 @@ summary(res, alpha = 0.05)
 ### then some sample QC plots eg sample-sample correlation and PCA
 
 
+``` {r}
+print(head(annot_peaks_bed))
 
+rownames(res)[1]
+
+annot_peaks_bed_temp <- annot_peaks_bed[, -1]
+rownames(annot_peaks_bed_temp) <- annot_peaks_bed[, 1]
+head(annot_peaks_bed_temp)
+
+annot_peaks_bed_temp[rownames(res)[1], ]
+
+
+```
 
 
 
@@ -356,6 +366,11 @@ res_1 <- results(dds, contrast=c("condition","FAST","OMNI"))
 
 ```
 You can reorder the results based on the p values
+
+```{r deseq2_res_reorder}
+res <- res[order(res$padj),]
+head(res)
+```
 
 ```{r deseq2_res_reorder}
 res <- res[order(res$padj),]
