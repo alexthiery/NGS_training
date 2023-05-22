@@ -1,6 +1,7 @@
 ---
 title: "Bulk RNAseq analysis"
-output: html_document
+output:
+  html_document
 author: "Alex Thiery"
 date: "2023-01-20"
 ---
@@ -76,14 +77,22 @@ read_counts <- read.delim('https://raw.githubusercontent.com/alexthiery/NGS_trai
 
 The first thing we need to do is check that all our gene names are unique - if not this can cause problems downstream if we want to be able to distinguish between two transcripts which have the same gene name. Therefore it is useful to first create a gene annotation dataframe with both unique gene ids and names before running any downstream analysis
 
-You can check if an array contains only unique elements by returning a boolean array as to whether or not any elements are duplicated
+</br>
 
-You can see here that gene ids are all unique, this is because gene ids are associated with unique genome co-ordinates. This isn't necessarily the case with gene names!
+#### Challenge 1: Check whether all gene names are unique, then check whether all gene ids are unique.
+Tip - you can do this by checking if any elements of an array are duplicated
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
+<div id="BlockName2" class="collapse">
 ```{r}
 any(duplicated(read_counts$gene_id))
 any(duplicated(read_counts$gene_name))
 ```
 
+You can see here that gene ids are all unique, this is because gene ids are associated with unique genome co-ordinates. This isn't necessarily the case with gene names!
+</div>
+
+</br>
 
 We can make gene names unique by using adding an index and using "_" as a separator
 ```{r}

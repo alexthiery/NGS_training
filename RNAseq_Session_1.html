@@ -418,15 +418,26 @@ to distinguish between two transcripts which have the same gene name.
 Therefore it is useful to first create a gene annotation dataframe with
 both unique gene ids and names before running any downstream
 analysis</p>
-<p>You can check if an array contains only unique elements by returning
-a boolean array as to whether or not any elements are duplicated</p>
-<p>You can see here that gene ids are all unique, this is because gene
-ids are associated with unique genome co-ordinates. This isn’t
-necessarily the case with gene names!</p>
+<p></br></p>
+</div>
+<div id="challenge-1-check-whether-all-gene-names-are-unique-then-check-whether-all-gene-ids-are-unique." class="section level4">
+<h4>Challenge 1: Check whether all gene names are unique, then check
+whether all gene ids are unique.</h4>
+<p>Tip - you can do this by checking if any elements of an array are
+duplicated</p>
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2">
+Show solution
+</button>
+<div id="BlockName2" class="collapse">
 <pre class="r"><code>any(duplicated(read_counts$gene_id))</code></pre>
 <pre><code>## [1] FALSE</code></pre>
 <pre class="r"><code>any(duplicated(read_counts$gene_name))</code></pre>
 <pre><code>## [1] TRUE</code></pre>
+<p>You can see here that gene ids are all unique, this is because gene
+ids are associated with unique genome co-ordinates. This isn’t
+necessarily the case with gene names!</p>
+</div>
+<p></br></p>
 <p>We can make gene names unique by using adding an index and using “_”
 as a separator</p>
 <pre class="r"><code>read_counts$gene_name &lt;- make.unique(read_counts$gene_name, sep = &quot;_&quot;)</code></pre>
