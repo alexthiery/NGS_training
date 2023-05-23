@@ -6,8 +6,7 @@ author: "Alex Thiery"
 date: "2023-01-20"
 ---
 
-
-### **R tutorial 1**
+### **R tutorial 2**
 </br>
 
 Previously we conducted differential expression analysis using DESeq2. Now, we will visualise these results in volcano plots and heatmaps using ggplot2.
@@ -15,6 +14,7 @@ Previously we conducted differential expression analysis using DESeq2. Now, we w
 </br>
 
 #### **Setup working environment**
+
 ```{r setup}
 knitr::opts_knit$set(root.dir = '~/Downloads/')
 ```
@@ -25,7 +25,7 @@ setwd('~/Downloads/')
 ```
 
 Load libraries
-```{r}
+```{r, message=FALSE, warning=FALSE}
 if (!require("pheatmap", quietly = TRUE)){
     install.packages("pheatmap", repos = "http://cran.us.r-project.org")
 }
@@ -46,20 +46,28 @@ Set output path
 output_path <- './output/'
 ```
 
+</br>
 
-Read in deseq2 output from session 1
+#### **Volcano Plot**
+
+The first thing we need to do is read in the deseq2 output that we made in session 1:
 ```{r}
 deseq <- readRDS(paste0(output_path, 'deseq_output.RDS'))
 res <- lfcShrink(deseq, coef=c("Group_MCF7_vs_H1"), type = 'apeglm')
 rld <- rlog(deseq)
 ```
 
-Prepare volcano data
+</br>
+
+Then we need to format this data so we can plot it. 
 ```{r}
 volcano_data <- as.data.frame(res)
 
 volcano_data <- mutate(volcano_data, '-log10(padj)' = -log10(padj))
 ```
+
+
+Then we use the ggplot package to plot the data. 
 
 ```{r}
 ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
@@ -67,40 +75,89 @@ ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
   theme_classic()
 ```
 
-To plot which genes are significant, we first need to threshold the results and label genes which are up/down-regulated
+</br>
+
+#### **Volcano Plot with thresholds**
+
+We can upgrade our volcano plots by colouring our points based on log2FC or p-values. This can make it easier to quickly spot which genes are significantly upregulated or downregulated.  
+
+To plot which genes are significant, we first need to threshold the results so we label any genes which hav a p-value of less than 0.001. 
+
 ```{r}
 volcano_data <- volcano_data %>%
   filter(!is.na(padj)) %>%
-  mutate(sig = case_when((padj < 0.01 & log2FoldChange > 1.5) == 'TRUE' ~ 'upregulated',
-                         (padj < 0.01 & log2FoldChange < -1.5) == 'TRUE' ~ 'downregulated',
-                         (padj >= 0.01 | abs(log2FoldChange) <= 1.5) == 'TRUE' ~ 'not sig')) %>%
+  mutate(sig = case_when((padj < 0.001) == 'TRUE' ~ 'significant',
+                         (padj >= 0.001) == 'TRUE' ~ 'not sigificant')) %>%
   arrange(abs(padj))
 ```
 
-Next, we can colour the genes according to their significance 
+Next, we can colour the genes according to their significance. Let's colour the genes that are significant blue and those that are not significant grey. 
+We can also use `geom_hline` to add a horizontal line at our p-value threshold on the y axis. 
+
 ```{r}
 ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
   geom_point(aes(colour = sig, fill = sig), size = 0.5) +
-  scale_color_manual(breaks = c("not sig", "downregulated", "upregulated"),
-                    values = alpha(c("#c1c1c1", "#f55f20", "#48d1cc"))) +
-  geom_hline(yintercept=-log10(0.01), linetype="dashed", color = "black") +
-  geom_vline(xintercept=c(-1.5, 1.5), linetype="dashed", color = "black") +
+  scale_color_manual(breaks = c("not sig", "significant"),
+                    values = alpha(c("#c1c1c1", "#48d1cc"))) +
+  geom_hline(yintercept=-log10(0.001), linetype="dashed", color = "black") +
   theme_classic() +
   theme(legend.position = "none")
 ```
 
+
+</br>
+
+___
+
+#### Challenge: Make a volcano plot where significantly upregulated genes (with a p-value of less than 0.001 and a log2FC of more than 2.5) are colored in blue, significantly downregulated genes (p-value less than 0.001 and log2FC less than -2.5) are coloured red, and non-significant genes (p-value more than 0.001) are grey.
+
+TIP: use the code above as a guide, you just need to add some extra code to separate the significant genes based on whether they are upregualated or downregulated. 
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
+<div id="BlockName2" class="collapse">
+
+</br>
+
+Here we use the operators AND `&` and OR `|` to help us categorise our genes into 'upregulated', 'downregulated' and 'not sig'. These points are then coloured in ggplot and `geom_hline` and `geom_vline` are used to add lines where our thresholds are. 
+
 ```{r}
+volcano_data <- volcano_data %>%
+  filter(!is.na(padj)) %>%
+  mutate(sig = case_when((padj < 0.001 & log2FoldChange > 2.5) == 'TRUE' ~ 'upregulated',
+                         (padj < 0.001 & log2FoldChange < -2.5) == 'TRUE' ~ 'downregulated',
+                         (padj >= 0.001 | abs(log2FoldChange) <= 2.5) == 'TRUE' ~ 'not sig')) %>%
+  arrange(abs(padj))
+
+ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
+  geom_point(aes(colour = sig, fill = sig), size = 0.5) +
+  scale_color_manual(breaks = c("not sig", "downregulated", "upregulated"),
+                    values = alpha(c("#c1c1c1", "#f55f20", "#48d1cc"))) +
+  geom_hline(yintercept=-log10(0.001), linetype="dashed", color = "black") +
+  geom_vline(xintercept=c(-2.5, 2.5), linetype="dashed", color = "black") +
+  theme_classic() +
+  theme(legend.position = "none")
 ```
 
-Subset differentially expressed genes (adjusted p-value < 0.01, absolute log2FC > 1.5).
+</div>
+
+___
+
+</br>
+
+#### **Heatmap of top differentially expressed genes**
+
+As well as volcano plots, we can visualise the expression levels of genes across samples using a heatmap. 
+
+First lets subset our differentially expressed genes (adjusted p-value < 0.001, absolute log2FC > 2.5).
 
 ``` {r}
-res_sub <- res[which(res$padj < 0.01 & abs(res$log2FoldChange) > 1.5), ]
+res_sub <- filter(as.data.frame(res), padj < 0.001 & abs(log2FoldChange) > 2.5)
 res_sub <- res_sub[order(-res_sub$log2FoldChange),]
+res_sub[1:10,]
 ```
 
 
-Plot heatmap of differentially expressed genes.
+Now we can plot a heatmap of our differentially expressed genes.
 
 ``` {r}
 pheatmap(assay(rld)[rownames(res_sub),], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=FALSE,
@@ -108,4 +165,3 @@ pheatmap(assay(rld)[rownames(res_sub),], color = colorRampPalette(c("#191d73", "
          border_color = NA)
 
 ```
-
