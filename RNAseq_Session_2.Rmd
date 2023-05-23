@@ -1,0 +1,110 @@
+---
+title: "Bulk RNAseq analysis"
+output:
+  html_document
+author: "Alex Thiery"
+date: "2023-01-20"
+---
+
+
+### **R tutorial 1**
+</br>
+
+Previously we conducted differential expression analysis using DESeq2. Now, we will visualise these results in volcano plots and heatmaps using ggplot2.
+
+</br>
+
+#### **Setup working environment**
+```{r setup}
+knitr::opts_knit$set(root.dir = '~/Downloads/')
+```
+
+Set working directory
+```{r}
+setwd('~/Downloads/')
+```
+
+Load libraries
+```{r}
+if (!require("pheatmap", quietly = TRUE)){
+    install.packages("pheatmap", repos = "http://cran.us.r-project.org")
+}
+
+if (!require("ggplot2", quietly = TRUE)){
+    install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+}
+
+library(pheatmap)
+library(ggplot2)
+library(DESeq2)
+```
+
+
+Set output path
+```{r, message=FALSE, warning=FALSE}
+output_path <- './output/'
+```
+
+
+Read in deseq2 output from session 1
+```{r}
+deseq <- readRDS(paste0(output_path, 'deseq_output.RDS'))
+res <- lfcShrink(deseq, coef=c("Group_MCF7_vs_H1"), type = 'apeglm')
+rld <- rlog(deseq)
+```
+
+Prepare volcano data
+```{r}
+volcano_data <- as.data.frame(res)
+
+volcano_data <- mutate(volcano_data, '-log10(padj)' = -log10(padj))
+```
+
+```{r}
+ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
+  geom_point() +
+  theme_classic()
+```
+
+To plot which genes are significant, we first need to threshold the results and label genes which are up/down-regulated
+```{r}
+volcano_data <- volcano_data %>%
+  filter(!is.na(padj)) %>%
+  mutate(sig = case_when((padj < 0.01 & log2FoldChange > 1.5) == 'TRUE' ~ 'upregulated',
+                         (padj < 0.01 & log2FoldChange < -1.5) == 'TRUE' ~ 'downregulated',
+                         (padj >= 0.01 | abs(log2FoldChange) <= 1.5) == 'TRUE' ~ 'not sig')) %>%
+  arrange(abs(padj))
+```
+
+Next, we can colour the genes according to their significance 
+```{r}
+ggplot(volcano_data, aes(log2FoldChange, `-log10(padj)`)) +
+  geom_point(aes(colour = sig, fill = sig), size = 0.5) +
+  scale_color_manual(breaks = c("not sig", "downregulated", "upregulated"),
+                    values = alpha(c("#c1c1c1", "#f55f20", "#48d1cc"))) +
+  geom_hline(yintercept=-log10(0.01), linetype="dashed", color = "black") +
+  geom_vline(xintercept=c(-1.5, 1.5), linetype="dashed", color = "black") +
+  theme_classic() +
+  theme(legend.position = "none")
+```
+
+```{r}
+```
+
+Subset differentially expressed genes (adjusted p-value < 0.01, absolute log2FC > 1.5).
+
+``` {r}
+res_sub <- res[which(res$padj < 0.01 & abs(res$log2FoldChange) > 1.5), ]
+res_sub <- res_sub[order(-res_sub$log2FoldChange),]
+```
+
+
+Plot heatmap of differentially expressed genes.
+
+``` {r}
+pheatmap(assay(rld)[rownames(res_sub),], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=T, show_rownames=FALSE,
+         show_colnames = F, cluster_cols=T, annotation_col=as.data.frame(colData(deseq)["Group"]), scale = "row", treeheight_row = 0, treeheight_col = 25,
+         border_color = NA)
+
+```
+

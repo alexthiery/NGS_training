@@ -372,6 +372,9 @@ differential expression analysis.</p>
 <p></br></p>
 <div id="setup-working-environment" class="section level4">
 <h4><strong>Setup working environment</strong></h4>
+<pre class="r"><code>knitr::opts_knit$set(root.dir = &#39;~/Downloads/&#39;)</code></pre>
+<p>Set working directory</p>
+<pre class="r"><code>setwd(&#39;~/Downloads/&#39;)</code></pre>
 <p>First we need to install the required packages</p>
 <pre class="r"><code>if (!require(&quot;tidyverse&quot;, quietly = TRUE))
     install.packages(&quot;tidyverse&quot;, repos = &quot;http://cran.us.r-project.org&quot;)
@@ -391,9 +394,7 @@ outputs. I am adding these paths at the top of this script so that each
 of you can easily change the paths without causing any issues
 downstream</p>
 <pre class="r"><code>output_path &lt;- &#39;./output/&#39;
-plot_path &lt;- &#39;./output/plots/&#39;
-dir.create(output_path, recursive = TRUE)
-dir.create(plot_path, recursive = TRUE)</code></pre>
+dir.create(output_path, recursive = TRUE)</code></pre>
 <p></br></p>
 </div>
 <div id="data-pre-processing" class="section level4">
@@ -741,9 +742,9 @@ shrink LFC when a gene has low counts or high dispersion values.</p>
 ## (mean count &lt; 4)
 ## [1] see &#39;cooksCutoff&#39; argument of ?results
 ## [2] see &#39;independentFiltering&#39; argument of ?results</code></pre>
-<p>We can save the output of the final pairwise differential test for
-our next session on visualisation of heatmaps and volcano plots</p>
-<pre class="r"><code>saveRDS(res, &#39;~/Downloads/MCF7_vs_H1_pairwise_results.RDS&#39;)</code></pre>
+<p>We can save the output deseq object for our next session on
+visualisation with heatmaps and volcano plots</p>
+<pre class="r"><code>saveRDS(deseq, paste0(output_path, &#39;deseq_output.RDS&#39;))</code></pre>
 </div>
 </div>
 

@@ -6,12 +6,6 @@ author: "Alex Thiery"
 date: "2023-01-20"
 ---
 
-</br>
-
-### **Clone GitHub repository**
-
-</br>
-
 ### **R tutorial 1**
 </br>
 
@@ -22,6 +16,16 @@ This tutorial is focussed on the data objects used during DESeq2 differential ex
 </br>
 
 #### **Setup working environment**
+
+
+```{r setup}
+knitr::opts_knit$set(root.dir = '~/Downloads/')
+```
+
+Set working directory
+```{r}
+setwd('~/Downloads/')
+```
 
 First we need to install the required packages
 
@@ -48,9 +52,7 @@ library(tidyverse)
 It is useful to first set the paths where you want to save your outputs. I am adding these paths at the top of this script so that each of you can easily change the paths without causing any issues downstream
 ```{r, message=FALSE, warning=FALSE}
 output_path <- './output/'
-plot_path <- './output/plots/'
 dir.create(output_path, recursive = TRUE)
-dir.create(plot_path, recursive = TRUE)
 ```
 
 </br>
@@ -205,7 +207,6 @@ You can see here from the output that for each condition, there are two replicat
 plotPCA(rld, intgroup = "Group")
 ```
 
-
 #### DESeq2 under the hood
 
 The size factors shown below are the values for which gene expression in each sample is scaled for in order to account for sequencing depth and RNA composition.
@@ -271,8 +272,8 @@ summary(res, alpha = 0.05)
 ```
 
 
-We can save the output of the final pairwise differential test for our next session on visualisation  of heatmaps and volcano plots
+We can save the output deseq object for our next session on visualisation with heatmaps and volcano plots
 ``` {r}
-saveRDS(res, '~/Downloads/MCF7_vs_H1_pairwise_results.RDS')
+saveRDS(deseq, paste0(output_path, 'deseq_output.RDS'))
 ```
 
