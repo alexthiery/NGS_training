@@ -357,11 +357,6 @@ display: none;
 </div>
 
 
-<p></br></p>
-<div id="clone-github-repository" class="section level3">
-<h3><strong>Clone GitHub repository</strong></h3>
-<p></br></p>
-</div>
 <div id="r-tutorial-1" class="section level3">
 <h3><strong>R tutorial 1</strong></h3>
 <p></br></p>
@@ -517,9 +512,18 @@ documentation</a> for more detail.</p>
 very low expression. This helps to reduce the size of the dataset whilst
 also removing genes for which we have not captured meaningful biological
 variation.</p>
-<p>Here I am filtering genes which have fewer than 5 counts in at least
-2 samples</p>
+<p></br></p>
+</div>
+<div id="challenge-2-filter-the-genes-which-have-fewer-than-5-counts-in-at-least-2-samples." class="section level4">
+<h4>Challenge 2: Filter the genes which have fewer than 5 counts in at
+least 2 samples.</h4>
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2">
+Show solution
+</button>
+<div id="BlockName2" class="collapse">
 <pre class="r"><code>deseq &lt;- deseq[rowSums(counts(deseq) &gt; 5) &gt;= 2, ]</code></pre>
+</div>
+<p></br></p>
 <p>Next I set the reference level of the Group column to GM12878. This
 reference level is your control sample. Subsequent pairwise differential
 expression test compare different conditions relative to this
@@ -729,17 +733,56 @@ shrink LFC when a gene has low counts or high dispersion values.</p>
 ## RP11-114I8.4   19.58589       1.152023  0.956407   0.0679535   0.1028460
 ## RP11-180C16.1  29.72969      -1.191238  1.511991   0.0529045   0.0822025
 ## AP000230.1      9.45268      -0.407383  1.045429   0.2745576   0.3505693</code></pre>
+<p></br></p>
+</div>
+<div id="challenge-3-identify-which-gene-has-the-highest-log2fc-when-comparing-mcf7-vs-k562." class="section level4">
+<h4>Challenge 3: Identify which gene has the highest log2FC when
+comparing MCF7 vs K562.</h4>
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2">
+Show solution
+</button>
+<div id="BlockName2" class="collapse">
+<p>First you need to relevel the deseq object so you perform the correct
+test (MCF7 vs K562), then you need to reorder the results to extract the
+highest LogFC gene.</p>
+<pre class="r"><code>deseq$Group &lt;- relevel(deseq$Group, ref = &quot;K562&quot;)
+deseq &lt;- DESeq(deseq)</code></pre>
+<pre><code>## using pre-existing size factors</code></pre>
+<pre><code>## estimating dispersions</code></pre>
+<pre><code>## found already estimated dispersions, replacing these</code></pre>
+<pre><code>## gene-wise dispersion estimates</code></pre>
+<pre><code>## mean-dispersion relationship</code></pre>
+<pre><code>## final dispersion estimates</code></pre>
+<pre><code>## fitting model and testing</code></pre>
+<pre class="r"><code>resultsNames(deseq)</code></pre>
+<pre><code>## [1] &quot;Intercept&quot;             &quot;Group_H1_vs_K562&quot;      &quot;Group_GM12878_vs_K562&quot;
+## [4] &quot;Group_MCF7_vs_K562&quot;</code></pre>
+<pre class="r"><code>res &lt;- results(deseq, name=c(&quot;Group_MCF7_vs_K562&quot;))
+head(res[order(res$log2FoldChange, decreasing = TRUE),])</code></pre>
+<pre><code>## log2 fold change (MLE): Group MCF7 vs K562 
+## Wald test p-value: Group MCF7 vs K562 
+## DataFrame with 6 rows and 6 columns
+##             baseMean log2FoldChange     lfcSE      stat      pvalue        padj
+##            &lt;numeric&gt;      &lt;numeric&gt; &lt;numeric&gt; &lt;numeric&gt;   &lt;numeric&gt;   &lt;numeric&gt;
+## AC034102.1   729.652        25.7016   4.78471   5.37161 7.80382e-08 2.83843e-07
+## SLC5A3       968.722        24.0486   3.47037   6.92970 4.21738e-12 2.23102e-11
+## RNY3         135.670        22.5500   4.78505   4.71259 2.44582e-06 7.66467e-06
+## SPTSSB     31091.191        19.4287   1.45906  13.31590 1.87115e-40 4.65358e-39
+## GFRA1      19138.744        18.7334   1.47763  12.67800 7.83048e-37 1.67702e-35
+## KRT80      13632.379        18.2519   1.45798  12.51861 5.90625e-36 1.22386e-34</code></pre>
+</div>
+<p></br></p>
 <p>A summary table of the results for a given adjusted p-value threshold
 (alpha) can also easily be printed.</p>
 <pre class="r"><code>summary(res, alpha = 0.05)</code></pre>
 <pre><code>## 
 ## out of 23907 with nonzero total read count
 ## adjusted p-value &lt; 0.05
-## LFC &gt; 0 (up)       : 5986, 25%
-## LFC &lt; 0 (down)     : 7747, 32%
+## LFC &gt; 0 (up)       : 7461, 31%
+## LFC &lt; 0 (down)     : 5783, 24%
 ## outliers [1]       : 0, 0%
-## low counts [2]     : 1391, 5.8%
-## (mean count &lt; 4)
+## low counts [2]     : 927, 3.9%
+## (mean count &lt; 3)
 ## [1] see &#39;cooksCutoff&#39; argument of ?results
 ## [2] see &#39;independentFiltering&#39; argument of ?results</code></pre>
 <p>We can save the output deseq object for our next session on
