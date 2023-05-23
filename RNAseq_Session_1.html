@@ -395,7 +395,7 @@ dir.create(output_path, recursive = TRUE)</code></pre>
 <div id="data-pre-processing" class="section level4">
 <h4><strong>Data pre-processing</strong></h4>
 <p>Read in transcript pseudo-counts from the alignment</p>
-<pre class="r"><code>read_counts &lt;- read.delim(&#39;https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-RNAseq_alignment/salmon.merged.gene_counts.tsv&#39;, stringsAsFactors = FALSE)</code></pre>
+<pre class="r"><code>read_counts &lt;- read.delim(&#39;./rnaseq_read_counts.tsv&#39;, stringsAsFactors = FALSE)</code></pre>
 <p>The first thing we need to do is check that all our gene names are
 unique - if not this can cause problems downstream if we want to be able
 to distinguish between two transcripts which have the same gene name.
@@ -403,6 +403,7 @@ Therefore it is useful to first create a gene annotation dataframe with
 both unique gene ids and names before running any downstream
 analysis</p>
 <p></br></p>
+<hr />
 </div>
 <div id="challenge-1-check-whether-all-gene-names-are-unique-then-check-whether-all-gene-ids-are-unique." class="section level4">
 <h4>Challenge 1: Check whether all gene names are unique, then check
@@ -413,6 +414,7 @@ duplicated</p>
 Show solution
 </button>
 <div id="BlockName2" class="collapse">
+<p></br></p>
 <pre class="r"><code>any(duplicated(read_counts$gene_id))</code></pre>
 <pre><code>## [1] FALSE</code></pre>
 <pre class="r"><code>any(duplicated(read_counts$gene_name))</code></pre>
@@ -421,6 +423,7 @@ Show solution
 ids are associated with unique genome co-ordinates. This isn’t
 necessarily the case with gene names!</p>
 </div>
+<hr />
 <p></br></p>
 <p>We can make gene names unique by using adding an index and using “_”
 as a separator</p>
@@ -513,16 +516,19 @@ very low expression. This helps to reduce the size of the dataset whilst
 also removing genes for which we have not captured meaningful biological
 variation.</p>
 <p></br></p>
+<hr />
 </div>
 <div id="challenge-2-filter-the-genes-which-have-fewer-than-5-counts-in-at-least-2-samples." class="section level4">
 <h4>Challenge 2: Filter the genes which have fewer than 5 counts in at
 least 2 samples.</h4>
-<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2">
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName3">
 Show solution
 </button>
-<div id="BlockName2" class="collapse">
+<div id="BlockName3" class="collapse">
+<p></br></p>
 <pre class="r"><code>deseq &lt;- deseq[rowSums(counts(deseq) &gt; 5) &gt;= 2, ]</code></pre>
 </div>
+<hr />
 <p></br></p>
 <p>Next I set the reference level of the Group column to GM12878. This
 reference level is your control sample. Subsequent pairwise differential
@@ -734,19 +740,22 @@ shrink LFC when a gene has low counts or high dispersion values.</p>
 ## RP11-180C16.1  29.72969      -1.191238  1.511991   0.0529045   0.0822025
 ## AP000230.1      9.45268      -0.407383  1.045429   0.2745576   0.3505693</code></pre>
 <p></br></p>
+<hr />
 </div>
 <div id="challenge-3-identify-which-gene-has-the-highest-log2fc-when-comparing-mcf7-vs-k562." class="section level4">
 <h4>Challenge 3: Identify which gene has the highest log2FC when
 comparing MCF7 vs K562.</h4>
-<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2">
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName4">
 Show solution
 </button>
-<div id="BlockName2" class="collapse">
+<p></br></p>
+<div id="BlockName4" class="collapse">
 <p>First you need to relevel the deseq object so you perform the correct
 test (MCF7 vs K562), then you need to reorder the results to extract the
 highest LogFC gene.</p>
-<pre class="r"><code>deseq$Group &lt;- relevel(deseq$Group, ref = &quot;K562&quot;)
-deseq &lt;- DESeq(deseq)</code></pre>
+<pre class="r"><code>deseq_temp &lt;- deseq
+deseq_temp$Group &lt;- relevel(deseq_temp$Group, ref = &quot;K562&quot;)
+deseq_temp &lt;- DESeq(deseq_temp)</code></pre>
 <pre><code>## using pre-existing size factors</code></pre>
 <pre><code>## estimating dispersions</code></pre>
 <pre><code>## found already estimated dispersions, replacing these</code></pre>
@@ -754,10 +763,10 @@ deseq &lt;- DESeq(deseq)</code></pre>
 <pre><code>## mean-dispersion relationship</code></pre>
 <pre><code>## final dispersion estimates</code></pre>
 <pre><code>## fitting model and testing</code></pre>
-<pre class="r"><code>resultsNames(deseq)</code></pre>
+<pre class="r"><code>resultsNames(deseq_temp)</code></pre>
 <pre><code>## [1] &quot;Intercept&quot;             &quot;Group_H1_vs_K562&quot;      &quot;Group_GM12878_vs_K562&quot;
 ## [4] &quot;Group_MCF7_vs_K562&quot;</code></pre>
-<pre class="r"><code>res &lt;- results(deseq, name=c(&quot;Group_MCF7_vs_K562&quot;))
+<pre class="r"><code>res &lt;- results(deseq_temp, name=c(&quot;Group_MCF7_vs_K562&quot;))
 head(res[order(res$log2FoldChange, decreasing = TRUE),])</code></pre>
 <pre><code>## log2 fold change (MLE): Group MCF7 vs K562 
 ## Wald test p-value: Group MCF7 vs K562 
@@ -771,6 +780,7 @@ head(res[order(res$log2FoldChange, decreasing = TRUE),])</code></pre>
 ## GFRA1      19138.744        18.7334   1.47763  12.67800 7.83048e-37 1.67702e-35
 ## KRT80      13632.379        18.2519   1.45798  12.51861 5.90625e-36 1.22386e-34</code></pre>
 </div>
+<hr />
 <p></br></p>
 <p>A summary table of the results for a given adjusted p-value threshold
 (alpha) can also easily be printed.</p>

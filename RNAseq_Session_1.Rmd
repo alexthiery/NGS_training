@@ -61,18 +61,23 @@ dir.create(output_path, recursive = TRUE)
 
 Read in transcript pseudo-counts from the alignment
 ```{r}
-read_counts <- read.delim('https://raw.githubusercontent.com/alexthiery/NGS_training/main/data/NF-RNAseq_alignment/salmon.merged.gene_counts.tsv', stringsAsFactors = FALSE)
+read_counts <- read.delim('./rnaseq_read_counts.tsv', stringsAsFactors = FALSE)
 ```
 
 The first thing we need to do is check that all our gene names are unique - if not this can cause problems downstream if we want to be able to distinguish between two transcripts which have the same gene name. Therefore it is useful to first create a gene annotation dataframe with both unique gene ids and names before running any downstream analysis
 
 </br>
 
+___
+
 #### Challenge 1: Check whether all gene names are unique, then check whether all gene ids are unique.
 Tip - you can do this by checking if any elements of an array are duplicated
 
 <button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
 <div id="BlockName2" class="collapse">
+
+</br>
+
 ```{r}
 any(duplicated(read_counts$gene_id))
 any(duplicated(read_counts$gene_name))
@@ -80,6 +85,8 @@ any(duplicated(read_counts$gene_name))
 
 You can see here that gene ids are all unique, this is because gene ids are associated with unique genome co-ordinates. This isn't necessarily the case with gene names!
 </div>
+
+___
 
 </br>
 
@@ -169,15 +176,22 @@ An important step in RNAseq preprocessing is to remove genes with very low expre
 
 </br>
 
+___
+
 #### Challenge 2: Filter the genes which have fewer than 5 counts in at least 2 samples. 
 
-<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
-<div id="BlockName2" class="collapse">
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName3"> Show solution </button>  
+<div id="BlockName3" class="collapse">
+
+</br>
+
 ```{r}
 deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
 ```
 
 </div>
+
+___
 
 </br>
 
@@ -275,20 +289,28 @@ res
 
 </br>
 
+___
+
 #### Challenge 3: Identify which gene has the highest log2FC when comparing MCF7 vs K562. 
 
-<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
-<div id="BlockName2" class="collapse">
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName4"> Show solution </button>
+
+</br>
+
+<div id="BlockName4" class="collapse">
 First you need to relevel the deseq object so you perform the correct test (MCF7 vs K562), then you need to reorder the results to extract the highest LogFC gene. 
 ```{r}
-deseq$Group <- relevel(deseq$Group, ref = "K562")
-deseq <- DESeq(deseq)
-resultsNames(deseq)
-res <- results(deseq, name=c("Group_MCF7_vs_K562"))
+deseq_temp <- deseq
+deseq_temp$Group <- relevel(deseq_temp$Group, ref = "K562")
+deseq_temp <- DESeq(deseq_temp)
+resultsNames(deseq_temp)
+res <- results(deseq_temp, name=c("Group_MCF7_vs_K562"))
 head(res[order(res$log2FoldChange, decreasing = TRUE),])
 ```
 
 </div>
+
+___
 
 </br>
 
