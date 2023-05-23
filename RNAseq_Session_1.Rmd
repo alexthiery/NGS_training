@@ -167,10 +167,19 @@ deseq <- DESeqDataSetFromMatrix(read_counts, design = ~ Group, colData = col_dat
 
 An important step in RNAseq preprocessing is to remove genes with very low expression. This helps to reduce the size of the dataset whilst also removing genes for which we have not captured meaningful biological variation.
 
-Here I am filtering genes which have fewer than 5 counts in at least 2 samples
+</br>
+
+#### Challenge 2: Filter the genes which have fewer than 5 counts in at least 2 samples. 
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
+<div id="BlockName2" class="collapse">
 ```{r}
 deseq <- deseq[rowSums(counts(deseq) > 5) >= 2, ]
 ```
+
+</div>
+
+</br>
 
 Next I set the reference level of the Group column to GM12878. This reference level is your control sample. Subsequent pairwise differential expression test compare different conditions relative to this control.
 ```{r}
@@ -264,6 +273,24 @@ res <- lfcShrink(deseq, coef=c("Group_MCF7_vs_H1"), type = 'apeglm')
 res
 ```
 
+</br>
+
+#### Challenge 3: Identify which gene has the highest log2FC when comparing MCF7 vs K562. 
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
+<div id="BlockName2" class="collapse">
+First you need to relevel the deseq object so you perform the correct test (MCF7 vs K562), then you need to reorder the results to extract the highest LogFC gene. 
+```{r}
+deseq$Group <- relevel(deseq$Group, ref = "K562")
+deseq <- DESeq(deseq)
+resultsNames(deseq)
+res <- results(deseq, name=c("Group_MCF7_vs_K562"))
+head(res[order(res$log2FoldChange, decreasing = TRUE),])
+```
+
+</div>
+
+</br>
 
 A summary table of the results for a given adjusted p-value threshold (alpha) can also easily be printed.
 
