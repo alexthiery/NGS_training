@@ -1,0 +1,193 @@
+---
+title: "Bulk RNAseq analysis"
+output:
+  html_document
+author: "Alex Thiery"
+date: "2023-01-20"
+---
+
+
+### **R tutorial 3**
+</br>
+
+Previously we carried out differential expression analysis and visualised the outputs in ggplot2. However, sometimes we want to look at the expression of genes associated to a specific developmental process. For this, we will use BioMart to filter genes from our differential expression analysis using GO terms associated to transcription factors and visualise heatmaps of these genes.
+
+</br>
+
+#### **Setup working environment**
+```{r setup}
+knitr::opts_knit$set(root.dir = '~/Downloads/')
+```
+
+Set working directory
+```{r}
+setwd('~/Downloads/')
+```
+
+Load libraries
+```{r, message=FALSE, warning=FALSE}
+if (!require("biomaRt", quietly = TRUE)){
+  install.packages("biomaRt", repos = "http://cran.us.r-project.org")
+}
+
+library(biomaRt)
+library(pheatmap)
+library(DESeq2)
+library(dplyr)
+```
+
+
+Set output path
+```{r, message=FALSE, warning=FALSE}
+output_path <- './output/'
+```
+
+
+Read in deseq2 output
+```{r, message=FALSE, warning=FALSE}
+deseq <- readRDS(paste0(output_path, 'deseq_output.RDS'))
+res <- lfcShrink(deseq, coef=c("Group_MCF7_vs_H1"), type = 'apeglm')
+rld <- rlog(deseq)
+```
+
+First, we want to select the biomart database which provides access to gene annotation information.
+``` {r}
+ensembl <- useEnsembl(biomart = "genes")
+```
+
+
+Next, we can look at the different datasets available
+```{r}
+datasets <- listDatasets(ensembl)
+datasets[1:10,]
+```
+
+We want to select the human dataset as we are working on human cell lines.
+```{r}
+ensembl <- useDataset(dataset = "hsapiens_gene_ensembl", mart = ensembl)
+```
+
+We can see what attributes we can extract from this database by using the *ListAttributes* function.
+```{r}
+listAttributes(ensembl)[1:10,]
+```
+
+
+To identify transcription factors, we want to use the gene names from our differential expression analysis to extract associated GO terms from the biomart database.
+
+However, gene names are not always unique! Therefore we need to use the gene names from our differential expression analysis to first select the gene IDs from our gene annotation table. Then we can use these gene IDs to extract the attributes of interest.
+
+Let's load the gene annotations from session 1
+
+```{r}
+gene_annotations <- read.csv(paste0(output_path, 'gene_annotations.csv'))
+```
+
+</br>
+
+___
+
+#### Challenge 1: Extract gene ids corresponding to the gene names present in the rownames of the *res* dataframe.
+Tip - you need to use *match* to make sure that you are extracting the correct gene ids!
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName2"> Show solution </button>  
+<div id="BlockName2" class="collapse">
+
+</br>
+
+```{r}
+res_gene_ids <- gene_annotations[match(rownames(res), gene_annotations$gene_name), 'gene_id']
+```
+</div>
+
+___
+
+</br>
+
+Now lets use the gene ids to extract the attributes of interest from biomart.
+```{r}
+biomart_out <- getBM(attributes=c('ensembl_gene_id', 'go_id'),
+                   filters = 'ensembl_gene_id',
+                   values = res_gene_ids,
+                   mart = ensembl)
+```
+
+For the purpose of this exercise we will use the following GO terms to extract transcription factors:
+
+GO:0003700 (DNA-binding transcription factor activity)
+GO:0043565 (sequence-specific DNA binding)
+GO:0000981 (DNA-binding transcription factor activity, RNA polymerase II-specific)
+
+For now we are ignoring binding co-factors. Depending on your question of interest you may choose to include other GO terms.
+
+</br>
+
+___
+
+#### Challenge 2: Filter the biomart output to keep only rows which contain one of our GO terms of interest. Then select the ensembl_gene_ids.
+Tip - you need to make sure that the ensembl gene ids are unique after extracting them, as many gene ids are associated to multiple GO terms and therefore are duplicated in the biomart output
+
+</br>
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName3"> Show solution </button>  
+<div id="BlockName3" class="collapse">
+
+</br>
+
+```{r}
+# Extract gene ids associated to GO terms of interest
+tf_gene_ids <- biomart_out %>% filter(go_id %in% c('GO:0003700', 'GO:0043565', 'GO:0000981')) %>% pull(ensembl_gene_id)
+
+# Alternative in base R
+#tf_gene_ids <- biomart_out[biomart_out$go_id %in% c('GO:0003700', 'GO:0043565', 'GO:0000981'), 'ensembl_gene_id']
+
+# Remove duplicated gene ids
+tf_gene_ids <- tf_gene_ids[!duplicated(tf_gene_ids)]
+```
+</div>
+
+___
+
+</br>
+
+Next, we now need to subset our differential expression results based on our *tf_gene_ids*. However, the differential expression results contain gene names and not gene IDs, so we have to recover the gene names from our gene annotation dataframe.
+
+```{r}
+tf_gene_names <- filter(gene_annotations, gene_id %in% tf_gene_ids) %>% pull(gene_name)
+```
+
+
+Next, we now need to subset our results dataframe using *tf_gene_names*
+```{r}
+res_sub_TF <- res[rownames(res) %in% tf_gene_names,]
+```
+
+</br>
+
+___
+
+#### Challenge 3: How many transcription factors are differentially expressed (absolute log2FC > 2.5 & FDR < 0.001)
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#BlockName4"> Show solution </button>  
+<div id="BlockName4" class="collapse">
+
+</br>
+
+After filtering we can see there are 312 TFs differentially expressed
+```{r}
+de_tfs <- filter(as.data.frame(res_sub_TF), padj < 0.001 & abs(log2FoldChange) > 2.5)
+nrow(de_tfs)
+```
+</div>
+
+___
+
+</br>
+
+Finally, lets select the top 30 TFs by log2FC and plot a heatmap.
+
+```{r}
+top30 <- de_tfs %>% top_n(30, abs(log2FoldChange))
+
+pheatmap(assay(rld)[rownames(top30),], color = colorRampPalette(c("#191d73", "white", "#ed7901"))(n = 100), cluster_rows=TRUE, show_rownames=TRUE, show_colnames = FALSE, cluster_cols=TRUE, annotation_col=as.data.frame(colData(deseq)["Group"]), scale = "row", treeheight_row = 0, treeheight_col = 25, border_color = NA)
+```
